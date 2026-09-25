@@ -369,18 +369,30 @@
       el.className = 'sync-status ' + (statusClass || '');
     }
 
-    // Télécharge la collection depuis GitHub à l'ouverture
+    // Télécharge la collection depuis l'API GitHub directement (Bypass du cache)
     async function loadFromGitHub() {
       var cfg = getGhConfig();
       if (!cfg.user || !cfg.repo) return;
 
       updateSyncStatus('⌛ Chargement GitHub...', 'syncing');
-      var url = 'https://raw.githubusercontent.com/' + cfg.user + '/' + cfg.repo + '/main/' + cfg.filePath + '?t=' + Date.now();
+      
+      var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath + '?ref=main&t=' + Date.now();
 
       try {
-        var res = await fetch(url);
+        var headers = {};
+        if (cfg.token) {
+          headers['Authorization'] = 'token ' + cfg.token;
+        }
+
+        var res = await fetch(apiUrl, { headers: headers });
         if (res.ok) {
-          var remoteData = await res.json();
+          var fileData = await res.json();
+          
+          // Décodage du contenu JSON depuis GitHub
+          var bytes = Uint8Array.from(atob(fileData.content.replace(/\s/g, '')), function(c) { return c.charCodeAt(0); });
+          var jsonText = new TextDecoder().decode(bytes);
+          var remoteData = JSON.parse(jsonText);
+
           collection = remoteData;
           localStorage.setItem('carCollection', JSON.stringify(collection));
           filterAndRender();
