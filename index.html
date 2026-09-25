@@ -345,6 +345,12 @@
         if (res.ok) {
           var fileData = await res.json();
           
+          if (!fileData.content) {
+            collection = [];
+            updateSyncStatus('⚠️ Fichier data.json vide');
+            return;
+          }
+
           var base64Cleaner = fileData.content.replace(/\s/g, '');
           var binaryString = atob(base64Cleaner);
           var bytes = new Uint8Array(binaryString.length);
@@ -352,9 +358,14 @@
             bytes[i] = binaryString.charCodeAt(i);
           }
           var jsonText = new TextDecoder('utf-8').decode(bytes);
-          var remoteData = JSON.parse(jsonText);
 
-          collection = remoteData;
+          // Sécurité si le fichier JSON est vide ou composé d'espaces
+          if (!jsonText || !jsonText.trim()) {
+            collection = [];
+          } else {
+            collection = JSON.parse(jsonText);
+          }
+
           localStorage.setItem('carCollection', JSON.stringify(collection));
           filterAndRender();
           updateStats();
