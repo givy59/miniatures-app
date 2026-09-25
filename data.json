@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": 1790310433112,
+    "fabricant": "Hot Wheels",
+    "marque": "test",
+    "modele": "test",
+    "serie": "test",
+    "annee": "0000",
+    "couleur": "nu",
+    "ref": "123",
+    "etat": "Neuf en boîte",
+    "image": ""
+  }
+]
