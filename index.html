@@ -84,6 +84,11 @@
       opacity: 0.9;
     }
 
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .btn-delete {
       background: #ef4444;
     }
@@ -95,6 +100,7 @@
     }
     .sync-status.online { color: #10b981; }
     .sync-status.syncing { color: #f59e0b; }
+    .sync-status.error { color: #ef4444; }
 
     .tabs {
       display: flex;
@@ -242,7 +248,6 @@
       border-radius: 3px;
     }
 
-    /* Modal Styles */
     .modal {
       display: none;
       position: fixed;
@@ -276,21 +281,108 @@
     }
 
     .lightbox-img {
-      max-width: 100%;
       max-height: 300px;
       object-fit: contain;
       border-radius: 6px;
       margin-bottom: 12px;
     }
+
+    .db-info {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+      padding: 8px;
+      background: #090d16;
+      border-radius: 4px;
+    }
   </style>
   <script>
-    var collection = [];
-    try {
-      collection = JSON.parse(localStorage.getItem('carCollection')) || [];
-    } catch(e) {
-      collection = [];
+    // ============= GESTION IndexedDB =============
+    const DB_NAME = 'MiniaturesCars';
+    const STORE_NAME = 'cars';
+    let db = null;
+    let collection = [];
+
+    async function initIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, 1);
+        
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          db = request.result;
+          console.log('IndexedDB initialisée');
+          loadAllCars().then(resolve).catch(reject);
+        };
+        
+        request.onupgradeneeded = (event) => {
+          const database = event.target.result;
+          if (!database.objectStoreNames.contains(STORE_NAME)) {
+            database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            console.log('Object Store créé');
+          }
+        };
+      });
     }
 
+    async function loadAllCars() {
+      if (!db) return;
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.getAll();
+        
+        request.onsuccess = () => {
+          collection = request.result || [];
+          resolve();
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function saveCar(car) {
+      if (!db) return;
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(car);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function deleteCar(id) {
+      if (!db) return;
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.delete(id);
+        
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function migrateFromLocalStorage() {
+      try {
+        const stored = localStorage.getItem('carCollection');
+        if (stored && collection.length === 0) {
+          const oldCollection = JSON.parse(stored);
+          console.log('Migration depuis localStorage:', oldCollection.length, 'voitures');
+          
+          for (const car of oldCollection) {
+            await saveCar(car);
+          }
+          await loadAllCars();
+          localStorage.removeItem('carCollection');
+          console.log('Migration terminée');
+        }
+      } catch (e) {
+        console.error('Erreur migration:', e);
+      }
+    }
+
+    // ============= DONNÉES GLOBALES =============
     var selectedBrand = 'Toutes';
     var currentView = 'cards';
     var currentImageBase64 = '';
@@ -303,7 +395,7 @@
       'Autre': '#8b5cf6'
     };
 
-    // --- CONFIGURATION GITHUB ---
+    // ============= CONFIGURATION GITHUB =============
     function getGhConfig() {
       return {
         user: (localStorage.getItem('gh_user') || '').trim(),
@@ -333,7 +425,7 @@
       el.className = 'sync-status ' + (statusClass || '');
     }
 
-    // --- LECTURE GITHUB ---
+    // ============= SYNCHRONISATION GITHUB =============
     async function loadFromGitHub() {
       var cfg = getGhConfig();
       if (!cfg.user || !cfg.repo) return;
@@ -353,8 +445,7 @@
           var fileData = await res.json();
           
           if (!fileData.content) {
-            collection = [];
-            updateSyncStatus('⚠️ Fichier data.json vide');
+            updateSyncStatus('⚠️ Fichier data.json vide', 'error');
             return;
           }
 
@@ -366,19 +457,25 @@
           }
           var jsonText = new TextDecoder('utf-8').decode(bytes);
 
-          // Sécurité si le fichier JSON est vide ou composé d'espaces
           if (!jsonText || !jsonText.trim()) {
             collection = [];
           } else {
-            collection = JSON.parse(jsonText);
+            const remoteData = JSON.parse(jsonText);
+            // Fusionner avec les données locales (les données locales prioritaires)
+            for (const car of remoteData) {
+              const existing = collection.find(c => c.id === car.id);
+              if (!existing) {
+                await saveCar(car);
+              }
+            }
           }
 
-          localStorage.setItem('carCollection', JSON.stringify(collection));
+          await loadAllCars();
           filterAndRender();
           updateStats();
           updateSyncStatus('☁️ Synchronisé avec GitHub', 'online');
         } else {
-          updateSyncStatus('⚠️ Erreur chargement GitHub');
+          updateSyncStatus('⚠️ Erreur chargement GitHub', 'error');
         }
       } catch (err) {
         console.error('Erreur lecture GitHub:', err);
@@ -386,11 +483,10 @@
       }
     }
 
-    // --- ÉCRITURE GITHUB ---
     async function pushToGitHub() {
       var cfg = getGhConfig();
       if (!cfg.user || !cfg.repo || !cfg.token) {
-        updateSyncStatus('⚠️ GitHub non configuré');
+        updateSyncStatus('⚠️ GitHub non configuré', 'error');
         return;
       }
 
@@ -421,7 +517,7 @@
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            message: 'Mise à jour automatique de la collection',
+            message: 'Mise à jour automatique de la collection (v2 - IndexedDB)',
             content: contentBase64,
             sha: sha || undefined
           })
@@ -430,13 +526,15 @@
         if (putRes.ok) {
           updateSyncStatus('☁️ Sauvegardé sur GitHub !', 'online');
         } else {
-          updateSyncStatus('❌ Erreur de sauvegarde GitHub');
+          updateSyncStatus('❌ Erreur de sauvegarde GitHub', 'error');
         }
       } catch (err) {
-        updateSyncStatus('❌ Erreur réseau GitHub');
+        console.error('Erreur GitHub:', err);
+        updateSyncStatus('❌ Erreur réseau GitHub', 'error');
       }
     }
 
+    // ============= INTERFACE =============
     function setView(view) {
       currentView = view;
       var btnCard = document.getElementById('view-card-btn');
@@ -462,6 +560,22 @@
         };
         container.appendChild(btn);
       });
+    }
+
+    function filterAndRender() {
+      var searchInput = document.getElementById('search-input');
+      var searchTerm = (searchInput ? searchInput.value.toLowerCase() : '').trim();
+
+      var filtered = collection.filter(function(car) {
+        var matchBrand = selectedBrand === 'Toutes' || car.fabricant === selectedBrand;
+        var matchSearch = !searchTerm || 
+          (car.marque && car.marque.toLowerCase().includes(searchTerm)) ||
+          (car.modele && car.modele.toLowerCase().includes(searchTerm)) ||
+          (car.ref && car.ref.toLowerCase().includes(searchTerm));
+        return matchBrand && matchSearch;
+      });
+
+      renderCollection(filtered);
     }
 
     function renderCollection(data) {
@@ -505,130 +619,75 @@
       } else {
         var table = document.createElement('table');
         table.className = 'collection-table';
-        var html = '<thead><tr><th>Photo</th><th>Fabricant</th><th>Marque</th><th>Modèle</th><th>Série</th><th>Année</th><th>Réf</th><th>Actions</th></tr></thead><tbody>';
-        
+        table.innerHTML = '<thead><tr><th>Photo</th><th>Fabricant</th><th>Marque</th><th>Modèle</th><th>Réf</th><th>État</th><th>Actions</th></tr></thead><tbody></tbody>';
+        var tbody = table.querySelector('tbody');
+
         data.forEach(function(car) {
-          html += '<tr>' +
-            '<td>' + (car.image ? '<img src="' + car.image + '" class="table-img" onclick="openLightbox(' + car.id + ')">' : '🏎️') + '</td>' +
-            '<td><strong style="color:' + (BRAND_COLORS[car.fabricant] || 'white') + '">' + (car.fabricant || '-') + '</strong></td>' +
+          var row = document.createElement('tr');
+          row.innerHTML = 
+            '<td>' + (car.image ? '<img class="table-img" src="' + car.image + '" onclick="openLightbox(' + car.id + ')">' : '🏎️') + '</td>' +
+            '<td>' + (car.fabricant || '-') + '</td>' +
             '<td>' + (car.marque || '-') + '</td>' +
             '<td>' + (car.modele || '-') + '</td>' +
-            '<td>' + (car.serie || '-') + '</td>' +
-            '<td>' + (car.annee || '-') + '</td>' +
             '<td>' + (car.ref || '-') + '</td>' +
-            '<td>' +
-              '<button type="button" onclick="editCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">✏️</button> ' +
-              '<button type="button" class="btn-delete" onclick="deleteCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">🗑️</button>' +
-            '</td>' +
-          '</tr>';
+            '<td>' + (car.etat || '-') + '</td>' +
+            '<td><button type="button" onclick="editCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">Éditer</button> <button type="button" class="btn-delete" onclick="deleteCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">Sup</button></td>';
+          tbody.appendChild(row);
         });
-        
-        html += '</tbody>';
-        table.innerHTML = html;
         container.appendChild(table);
       }
     }
 
-    function filterAndRender() {
-      var searchInput = document.getElementById('search-input');
-      var term = searchInput ? searchInput.value.toLowerCase() : '';
-
-      var filtered = collection.filter(function(car) {
-        var matchesBrand = selectedBrand === 'Toutes' || (car.fabricant && car.fabricant.toLowerCase() === selectedBrand.toLowerCase());
-        var matchesSearch = (car.marque && car.marque.toLowerCase().indexOf(term) !== -1) ||
-                              (car.modele && car.modele.toLowerCase().indexOf(term) !== -1) ||
-                              (car.ref && car.ref.toLowerCase().indexOf(term) !== -1);
-        return matchesBrand && matchesSearch;
-      });
-
-      renderCollection(filtered);
-    }
-
     function updateStats() {
+      var total = collection.length;
+      var marques = [...new Set(collection.map(c => c.fabricant))].filter(Boolean).length;
+      
       var statTotal = document.getElementById('stat-total');
       var statMarques = document.getElementById('stat-marques');
-      if (statTotal) statTotal.textContent = collection.length;
-      
-      if (statMarques) {
-        var marques = new Set(collection.map(function(c) { return c.marque; }).filter(Boolean));
-        statMarques.textContent = marques.size;
-      }
-
-      var total = collection.length;
-      var counts = {};
-      Object.keys(BRAND_COLORS).forEach(function(b) { counts[b] = 0; });
-
-      collection.forEach(function(c) {
-        var fab = counts[c.fabricant] !== undefined ? c.fabricant : 'Autre';
-        counts[fab] = (counts[fab] || 0) + 1;
-      });
+      if (statTotal) statTotal.textContent = total;
+      if (statMarques) statMarques.textContent = marques;
 
       var distBar = document.getElementById('dist-bar');
       var distLegend = document.getElementById('dist-legend');
       if (!distBar || !distLegend) return;
-      
+
       distBar.innerHTML = '';
       distLegend.innerHTML = '';
 
-      if (total === 0) {
-        distBar.innerHTML = '<div class="progress-segment" style="width:100%; background:#334155;"></div>';
-        return;
-      }
+      var byBrand = {};
+      AUTHORIZED_BRANDS.slice(1).forEach(b => byBrand[b] = 0);
+      collection.forEach(c => {
+        if (byBrand.hasOwnProperty(c.fabricant)) byBrand[c.fabricant]++;
+      });
 
-      Object.keys(counts).forEach(function(fab) {
-        var count = counts[fab];
-        if (count > 0) {
-          var pct = ((count / total) * 100).toFixed(1);
-          
-          var seg = document.createElement('div');
-          seg.className = 'progress-segment';
-          seg.style.width = pct + '%';
-          seg.style.backgroundColor = BRAND_COLORS[fab] || '#94a3b8';
-          seg.title = fab + ': ' + pct + '%';
-          distBar.appendChild(seg);
+      var totalCount = Object.values(byBrand).reduce((a, b) => a + b, 0);
+      if (totalCount === 0) return;
 
-          var leg = document.createElement('div');
-          leg.className = 'legend-item';
-          leg.innerHTML = '<div class="legend-color" style="background-color: ' + (BRAND_COLORS[fab] || '#94a3b8') + '"></div>' +
-            '<span>' + fab + ': <strong>' + pct + '%</strong> (' + count + ')</span>';
-          distLegend.appendChild(leg);
-        }
+      Object.keys(byBrand).forEach(function(brand) {
+        var count = byBrand[brand];
+        var pct = (count / totalCount * 100).toFixed(1);
+        
+        var segment = document.createElement('div');
+        segment.className = 'progress-segment';
+        segment.style.width = pct + '%';
+        segment.style.backgroundColor = BRAND_COLORS[brand] || '#808080';
+        distBar.appendChild(segment);
+
+        var legend = document.createElement('div');
+        legend.className = 'legend-item';
+        legend.innerHTML = 
+          '<div class="legend-color" style="background-color:' + (BRAND_COLORS[brand] || '#808080') + '"></div>' +
+          '<span>' + brand + ': ' + count + ' (' + pct + '%)</span>';
+        distLegend.appendChild(legend);
       });
     }
 
-    function openAddModal() {
-      var form = document.getElementById('car-form');
-      if (form) form.reset();
-      currentImageBase64 = '';
-      document.getElementById('image-preview-container').style.display = 'none';
-      document.getElementById('car-id').value = '';
-      document.getElementById('duplicate-warning').style.display = 'none';
-      document.getElementById('modal-title').textContent = 'Ajouter une voiture';
-      document.getElementById('car-modal').classList.add('active');
-    }
-
-    function closeModal() {
-      document.getElementById('car-modal').classList.remove('active');
-    }
-
     function openLightbox(id) {
-      var car = collection.find(function(c) { return c.id === id; });
+      var car = collection.find(c => c.id === id);
       if (!car) return;
 
       var body = document.getElementById('lightbox-body');
-      body.innerHTML = 
-        '<h2 style="margin-top:0;">' + (car.marque || '') + ' ' + (car.modele || 'Miniature') + '</h2>' +
-        (car.image ? '<img src="' + car.image + '" class="lightbox-img">' : '<div style="font-size:4rem; margin:20px;">🏎️</div>') +
-        '<div style="text-align:left; background:#090d16; padding:15px; border-radius:8px; font-size:0.95rem;">' +
-          '<p><strong>Fabricant :</strong> ' + (car.fabricant || '-') + '</p>' +
-          '<p><strong>Marque :</strong> ' + (car.marque || '-') + '</p>' +
-          '<p><strong>Modèle :</strong> ' + (car.modele || '-') + '</p>' +
-          '<p><strong>Série :</strong> ' + (car.serie || '-') + '</p>' +
-          '<p><strong>Année :</strong> ' + (car.annee || '-') + '</p>' +
-          '<p><strong>Couleur :</strong> ' + (car.couleur || '-') + '</p>' +
-          '<p><strong>Référence :</strong> ' + (car.ref || '-') + '</p>' +
-          '<p><strong>État :</strong> ' + (car.etat || '-') + '</p>' +
-        '</div>';
+      body.innerHTML = car.image ? '<img class="lightbox-img" src="' + car.image + '">' : '<p>Pas d\'image</p>';
       document.getElementById('lightbox-modal').classList.add('active');
     }
 
@@ -636,8 +695,25 @@
       document.getElementById('lightbox-modal').classList.remove('active');
     }
 
+    function openAddModal() {
+      currentImageBase64 = '';
+      document.getElementById('car-form').reset();
+      document.getElementById('car-id').value = '';
+      document.getElementById('car-fabricant').value = 'Hot Wheels';
+      document.getElementById('car-etat').value = 'Neuf en boîte';
+      document.getElementById('image-preview-container').style.display = 'none';
+      document.getElementById('modal-title').textContent = 'Ajouter une voiture';
+      document.getElementById('duplicate-warning').style.display = 'none';
+      document.getElementById('car-modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('car-modal').classList.remove('active');
+      currentImageBase64 = '';
+    }
+
     function editCar(id) {
-      var car = collection.find(function(c) { return c.id === id; });
+      var car = collection.find(c => c.id === id);
       if (!car) return;
 
       document.getElementById('car-id').value = car.id;
@@ -666,10 +742,10 @@
       document.getElementById('car-modal').classList.add('active');
     }
 
-    function deleteCar(id) {
+    async function deleteCarWithConfirm(id) {
       if (confirm('Supprimer cette voiture ?')) {
         collection = collection.filter(function(c) { return c.id !== id; });
-        localStorage.setItem('carCollection', JSON.stringify(collection));
+        await deleteCar(id);
         filterAndRender();
         updateStats();
         pushToGitHub();
@@ -713,7 +789,7 @@
       reader.readAsDataURL(file);
     }
 
-    function saveCar(e) {
+    async function saveCarData(e) {
       e.preventDefault();
       var id = document.getElementById('car-id').value;
       var newCar = {
@@ -736,8 +812,7 @@
         collection.push(newCar);
       }
 
-      localStorage.setItem('carCollection', JSON.stringify(collection));
-
+      await saveCar(newCar);
       filterAndRender();
       updateStats();
       closeModal();
@@ -756,13 +831,17 @@
       var file = e.target.files[0];
       if (!file) return;
       var reader = new FileReader();
-      reader.onload = function(evt) {
+      reader.onload = async function(evt) {
         try {
-          collection = JSON.parse(evt.target.result);
-          localStorage.setItem('carCollection', JSON.stringify(collection));
+          const imported = JSON.parse(evt.target.result);
+          for (const car of imported) {
+            await saveCar(car);
+          }
+          await loadAllCars();
           filterAndRender();
           updateStats();
           pushToGitHub();
+          alert('Import réussi !');
         } catch (err) {
           alert('Fichier JSON invalide.');
         }
@@ -770,27 +849,48 @@
       reader.readAsText(file);
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-      var cfg = getGhConfig();
-      if (document.getElementById('gh-user')) document.getElementById('gh-user').value = cfg.user;
-      if (document.getElementById('gh-repo')) document.getElementById('gh-repo').value = cfg.repo;
-      if (document.getElementById('gh-token')) document.getElementById('gh-token').value = cfg.token;
+    document.addEventListener('DOMContentLoaded', async function() {
+      try {
+        // Initialiser IndexedDB
+        await initIndexedDB();
+        console.log('IndexedDB chargé avec', collection.length, 'voitures');
+        
+        // Migrer depuis localStorage si nécessaire
+        await migrateFromLocalStorage();
+        
+        var cfg = getGhConfig();
+        if (document.getElementById('gh-user')) document.getElementById('gh-user').value = cfg.user;
+        if (document.getElementById('gh-repo')) document.getElementById('gh-repo').value = cfg.repo;
+        if (document.getElementById('gh-token')) document.getElementById('gh-token').value = cfg.token;
 
-      renderBrandTabs();
-      filterAndRender();
-      updateStats();
-      
-      loadFromGitHub();
+        renderBrandTabs();
+        filterAndRender();
+        updateStats();
+        
+        loadFromGitHub();
 
-      // Nettoyage automatique du Service Worker
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var r of registrations) {
-            r.unregister();
-          }
-        });
+        // Nettoyage automatique du Service Worker
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for (var r of registrations) {
+              r.unregister();
+            }
+          });
+        }
+
+        // Afficher info de stockage
+        updateStorageInfo();
+      } catch (err) {
+        console.error('Erreur initialisation:', err);
+        alert('Erreur lors de l\'initialisation: ' + err.message);
       }
     });
+
+    function updateStorageInfo() {
+      var info = document.getElementById('db-info');
+      if (!info) return;
+      info.textContent = '📊 IndexedDB actif | ' + collection.length + ' voiture(s) stockée(s)';
+    }
   </script>
 </head>
 <body>
@@ -802,14 +902,15 @@
 
     <!-- Configuration GitHub -->
     <div class="config-panel">
-      <strong>⚙️ Synchronisation GitHub Sync</strong>
+      <strong>⚙️ Synchronisation GitHub</strong>
       <div class="config-grid">
         <input type="text" id="gh-user" placeholder="Nom d'utilisateur GitHub">
         <input type="text" id="gh-repo" placeholder="Nom du dépôt (ex: miniatures)">
         <input type="password" id="gh-token" placeholder="Token d'accès (PAT)">
         <button onclick="saveGhConfig()">Enregistrer</button>
       </div>
-      <div id="sync-status" class="sync-status">Hors-ligne</div>
+      <div id="sync-status" class="sync-status">Initialisation...</div>
+      <div id="db-info" class="db-info">Chargement IndexedDB...</div>
     </div>
 
     <!-- Statistiques -->
@@ -845,7 +946,7 @@
   <div class="modal" id="car-modal">
     <div class="modal-content">
       <h2 id="modal-title">Ajouter une voiture</h2>
-      <form id="car-form" onsubmit="saveCar(event)">
+      <form id="car-form" onsubmit="saveCarData(event)">
         <input type="hidden" id="car-id">
         <div class="form-group">
           <label>Fabricant :</label>
