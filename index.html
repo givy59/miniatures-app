@@ -798,10 +798,12 @@
       loadFromGitHub();
 
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js')
-          .then(function() { console.log('Service Worker enregistré'); })
-          .catch(function(err) { console.error('Erreur Service Worker:', err); });
-      }
+  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+    for (let registration of registrations) {
+      registration.unregister();
+    }
+  });
+}
     });
   </script>
 </head>
