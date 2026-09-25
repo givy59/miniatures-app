@@ -100,11 +100,6 @@
       border-radius: 8px;
       margin-bottom: 20px;
     }
-    .github-config summary {
-      cursor: pointer;
-      font-weight: bold;
-      color: var(--accent-color);
-    }
     .github-inputs {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -364,7 +359,7 @@
       localStorage.setItem('gh_repo', document.getElementById('gh-repo').value.trim());
       localStorage.setItem('gh_token', document.getElementById('gh-token').value.trim());
       alert('Configuration GitHub enregistrée !');
-      syncWithGitHub();
+      loadFromGitHub();
     }
 
     function updateSyncStatus(text, statusClass) {
@@ -399,7 +394,7 @@
       }
     }
 
-    // Envoie la collection modifiée directement sur GitHub
+    // Envoie la collection modifiée directement sur GitHub (Compatible Firefox)
     async function pushToGitHub() {
       var cfg = getGhConfig();
       if (!cfg.user || !cfg.repo || !cfg.token) {
@@ -410,7 +405,12 @@
       updateSyncStatus('⌛ Sauvegarde sur GitHub...', 'syncing');
 
       var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath;
-      var contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(collection, null, 2))));
+      
+      // Encodage Base64 UTF-8 universel (compatible Firefox)
+      var jsonString = JSON.stringify(collection, null, 2);
+      var bytes = new TextEncoder().encode(jsonString);
+      var binString = Array.from(bytes, function(byte) { return String.fromCharCode(byte); }).join('');
+      var contentBase64 = btoa(binString);
 
       try {
         // 1. Récupérer la clef SHA du fichier existant
@@ -446,10 +446,6 @@
       } catch (err) {
         updateSyncStatus('❌ Erreur réseau GitHub');
       }
-    }
-
-    function syncWithGitHub() {
-      pushToGitHub();
     }
 
     function setView(view) {
@@ -678,7 +674,6 @@
         filterAndRender();
         updateStats();
         
-        // Push direct sur GitHub
         pushToGitHub();
       }
     }
@@ -749,7 +744,6 @@
       updateStats();
       closeModal();
 
-      // Push direct sur GitHub
       pushToGitHub();
     }
 
@@ -780,7 +774,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      // Charger les champs de config GitHub
       var cfg = getGhConfig();
       if (document.getElementById('gh-user')) document.getElementById('gh-user').value = cfg.user;
       if (document.getElementById('gh-repo')) document.getElementById('gh-repo').value = cfg.repo;
@@ -790,10 +783,8 @@
       filterAndRender();
       updateStats();
       
-      // Télécharger les données depuis GitHub au démarrage
       loadFromGitHub();
 
-      // Enregistrement du Service Worker
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js')
           .then(function() { console.log('Service Worker enregistré'); })
@@ -810,25 +801,25 @@
       <p>Hot Wheels • Matchbox • Majorette</p>
     </header>
 
-    <!-- Configuration GitHub -->
-    <details class="github-config">
-      <summary>⚙️ Configuration de la Synchronisation GitHub</summary>
+    <!-- Configuration GitHub visible -->
+    <section class="github-config">
+      <h3 style="margin-top:0; color: var(--accent-color);">⚙️ Configuration de la Synchronisation GitHub</h3>
       <div class="github-inputs">
         <div>
-          <label>Nom d'utilisateur GitHub</label>
+          <label for="gh-user">Nom d'utilisateur GitHub</label>
           <input type="text" id="gh-user" placeholder="ex: mon-pseudo">
         </div>
         <div>
-          <label>Nom du Dépôt GitHub</label>
+          <label for="gh-repo">Nom du Dépôt GitHub</label>
           <input type="text" id="gh-repo" placeholder="ex: mes-miniatures">
         </div>
         <div>
-          <label>Jeton GitHub (Token)</label>
+          <label for="gh-token">Jeton GitHub (Token)</label>
           <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
         </div>
       </div>
-      <button type="button" onclick="saveGhConfig()" style="margin-top:10px;">Enregistrer la configuration</button>
-    </details>
+      <button type="button" onclick="saveGhConfig()" style="margin-top:15px;">Enregistrer la configuration</button>
+    </section>
 
     <section class="stats">
       <div class="stats-row">
