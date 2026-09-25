@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestionnaire de Collection Miniatures</title>
+  
+  <!-- Manifest PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-color: #f8fafc;
+      --accent-color: #3b82f6;
+      --border-color: #334155;
+      --danger-color: #ef4444;
+      --warning-color: #f59e0b;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .stats {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .stats-row {
+      display: flex;
+      gap: 15px;
+    }
+    .stat-card {
+      background: var(--card-bg);
+      padding: 15px;
+      border-radius: 8px;
+      flex: 1;
+      text-align: center;
+      border: 1px solid var(--border-color);
+    }
+    .stat-value {
+      font-size: 1.8rem;
+      font-weight: bold;
+      color: var(--accent-color);
+    }
+    .stat-distribution {
+      background: var(--card-bg);
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .progress-bar-container {
+      display: flex;
+      height: 12px;
+      background: #090d16;
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-segment {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .dist-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      font-size: 0.85rem;
+      justify-content: center;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    input[type="text"], input[type="number"], select {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      padding: 10px;
+      border-radius: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .toolbar input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+    }
+    button, .btn-upload {
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      display: inline-block;
+    }
+    button:hover, .btn-upload:hover { opacity: 0.9; }
+    
+    .view-toggle {
+      display: flex;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .view-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-color);
+      padding: 8px 12px;
+      border-radius: 0;
+    }
+    .view-btn.active {
+      background: var(--accent-color);
+    }
+
+    .tabs-marques {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+    }
+    .tab-btn.active {
+      background: var(--accent-color);
+    }
+
+    .collection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .car-card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 15px;
+    }
+    .car-image {
+      height: 140px;
+      background: #090d16;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .car-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .car-marque-globale {
+      color: var(--accent-color);
+      font-weight: bold;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      margin-bottom: 8px;
+    }
+    .car-details div {
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+      color: #cbd5e1;
+    }
+    .car-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 15px;
+    }
+    .car-actions button {
+      flex: 1;
+    }
+    .btn-delete {
+      background: transparent;
+      border: 1px solid var(--danger-color);
+      color: var(--danger-color);
+    }
+
+    .collection-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card-bg);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+    .collection-table th, .collection-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .collection-table th {
+      background: #090d16;
+      color: var(--accent-color);
+    }
+    .table-img {
+      width: 45px;
+      height: 35px;
+      object-fit: cover;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: var(--card-bg);
+      padding: 25px;
+      border-radius: 10px;
+      max-width: 450px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .duplicate-warning {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid var(--warning-color);
+      color: var(--warning-color);
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 15px;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .form-group { margin-bottom: 12px; }
+    .form-row { display: flex; gap: 10px; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 4px; }
+
+    .lightbox-content {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 650px;
+      width: 90%;
+      text-align: center;
+      position: relative;
+    }
+    .lightbox-img {
+      max-width: 100%;
+      max-height: 350px;
+      border-radius: 8px;
+      object-fit: contain;
+      background: #090d16;
+      margin-bottom: 15px;
+    }
+    .close-btn {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      background: transparent;
+      font-size: 1.5rem;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+
+  <script>
+    var collection = [];
+    try {
+      collection = JSON.parse(localStorage.getItem('carCollection')) || [];
+    } catch(e) {
+      collection = [];
+    }
+
+    var selectedBrand = 'Toutes';
+    var currentView = 'cards';
+    var currentImageBase64 = '';
+
+    var AUTHORIZED_BRANDS = ['Toutes', 'Hot Wheels', 'Matchbox', 'Majorette', 'Autre'];
+    var BRAND_COLORS = {
+      'Hot Wheels': '#ef4444',
+      'Matchbox': '#f59e0b',
+      'Majorette': '#10b981',
+      'Autre': '#8b5cf6'
+    };
+
+    function setView(view) {
+      currentView = view;
+      document.getElementById('view-card-btn').classList.toggle('active', view === 'cards');
+      document.getElementById('view-list-btn').classList.toggle('active', view === 'list');
+      filterAndRender();
+    }
+
+    function renderBrandTabs() {
+      var container = document.getElementById('brand-tabs');
+      if (!container) return;
+      container.innerHTML = '';
+      AUTHORIZED_BRANDS.forEach(function(brand) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'tab-btn ' + (brand === selectedBrand ? 'active' : '');
+        btn.textContent = brand;
+        btn.onclick = function() {
+          selectedBrand = brand;
+          renderBrandTabs();
+          filterAndRender();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderCollection(data) {
+      var container = document.getElementById('collection-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (data.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#64748b; padding: 40px 0;">Aucune voiture trouvée.</p>';
+        return;
+      }
+
+      if (currentView === 'cards') {
+        var grid = document.createElement('div');
+        grid.className = 'collection-grid';
+        
+        data.forEach(function(car) {
+          var card = document.createElement('div');
+          card.className = 'car-card';
+          card.innerHTML = 
+            '<div>' +
+              '<div class="car-image" onclick="openLightbox(' + car.id + ')">' +
+                (car.image ? '<img src="' + car.image + '">' : '<span style="font-size:2rem;">🏎️</span>') +
+              '</div>' +
+              '<div class="car-marque-globale">' + (car.fabricant || 'Inconnu') + '</div>' +
+              '<div class="car-details">' +
+                '<div><strong>Marque :</strong> ' + (car.marque || '-') + '</div>' +
+                '<div><strong>Modèle :</strong> ' + (car.modele || '-') + '</div>' +
+                '<div><strong>Série :</strong> ' + (car.serie || '-') + '</div>' +
+                '<div><strong>Année :</strong> ' + (car.annee || '-') + '</div>' +
+                '<div><strong>Réf :</strong> ' + (car.ref || '-') + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="car-actions">' +
+              '<button type="button" onclick="editCar(' + car.id + ')">Éditer</button>' +
+              '<button type="button" class="btn-delete" onclick="deleteCar(' + car.id + ')">Supprimer</button>' +
+            '</div>';
+          grid.appendChild(card);
+        });
+        container.appendChild(grid);
+      } else {
+        var table = document.createElement('table');
+        table.className = 'collection-table';
+        var html = '<thead><tr><th>Photo</th><th>Fabricant</th><th>Marque</th><th>Modèle</th><th>Série</th><th>Année</th><th>Réf</th><th>Actions</th></tr></thead><tbody>';
+        
+        data.forEach(function(car) {
+          html += '<tr>' +
+            '<td>' + (car.image ? '<img src="' + car.image + '" class="table-img" onclick="openLightbox(' + car.id + ')">' : '🏎️') + '</td>' +
+            '<td><strong style="color:' + (BRAND_COLORS[car.fabricant] || 'white') + '">' + (car.fabricant || '-') + '</strong></td>' +
+            '<td>' + (car.marque || '-') + '</td>' +
+            '<td>' + (car.modele || '-') + '</td>' +
+            '<td>' + (car.serie || '-') + '</td>' +
+            '<td>' + (car.annee || '-') + '</td>' +
+            '<td>' + (car.ref || '-') + '</td>' +
+            '<td>' +
+              '<button type="button" onclick="editCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">✏️</button> ' +
+              '<button type="button" class="btn-delete" onclick="deleteCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">🗑️</button>' +
+            '</td>' +
+          '</tr>';
+        });
+        
+        html += '</tbody>';
+        table.innerHTML = html;
+        container.appendChild(table);
+      }
+    }
+
+    function filterAndRender() {
+      var searchInput = document.getElementById('search-input');
+      var term = searchInput ? searchInput.value.toLowerCase() : '';
+
+      var filtered = collection.filter(function(car) {
+        var matchesBrand = selectedBrand === 'Toutes' || (car.fabricant && car.fabricant.toLowerCase() === selectedBrand.toLowerCase());
+        var matchesSearch = (car.marque && car.marque.toLowerCase().indexOf(term) !== -1) ||
+                              (car.modele && car.modele.toLowerCase().indexOf(term) !== -1) ||
+                              (car.ref && car.ref.toLowerCase().indexOf(term) !== -1);
+        return matchesBrand && matchesSearch;
+      });
+
+      renderCollection(filtered);
+    }
+
+    function updateStats() {
+      document.getElementById('stat-total').textContent = collection.length;
+      var marques = new Set(collection.map(function(c) { return c.marque; }).filter(Boolean));
+      document.getElementById('stat-marques').textContent = marques.size;
+
+      var total = collection.length;
+      var counts = {};
+      Object.keys(BRAND_COLORS).forEach(function(b) { counts[b] = 0; });
+
+      collection.forEach(function(c) {
+        var fab = counts[c.fabricant] !== undefined ? c.fabricant : 'Autre';
+        counts[fab] = (counts[fab] || 0) + 1;
+      });
+
+      var distBar = document.getElementById('dist-bar');
+      var distLegend = document.getElementById('dist-legend');
+      distBar.innerHTML = '';
+      distLegend.innerHTML = '';
+
+      if (total === 0) {
+        distBar.innerHTML = '<div class="progress-segment" style="width:100%; background:#334155;"></div>';
+        return;
+      }
+
+      Object.keys(counts).forEach(function(fab) {
+        var count = counts[fab];
+        if (count > 0) {
+          var pct = ((count / total) * 100).toFixed(1);
+          
+          var seg = document.createElement('div');
+          seg.className = 'progress-segment';
+          seg.style.width = pct + '%';
+          seg.style.backgroundColor = BRAND_COLORS[fab] || '#94a3b8';
+          seg.title = fab + ': ' + pct + '%';
+          distBar.appendChild(seg);
+
+          var leg = document.createElement('div');
+          leg.className = 'legend-item';
+          leg.innerHTML = '<div class="legend-color" style="background-color: ' + (BRAND_COLORS[fab] || '#94a3b8') + '"></div>' +
+            '<span>' + fab + ': <strong>' + pct + '%</strong> (' + count + ')</span>';
+          distLegend.appendChild(leg);
+        }
+      });
+    }
+
+    function openAddModal() {
+      document.getElementById('car-form').reset();
+      currentImageBase64 = '';
+      document.getElementById('image-preview-container').style.display = 'none';
+      document.getElementById('car-id').value = '';
+      document.getElementById('duplicate-warning').style.display = 'none';
+      document.getElementById('modal-title').textContent = 'Ajouter une voiture';
+      document.getElementById('car-modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('car-modal').classList.remove('active');
+    }
+
+    function openLightbox(id) {
+      var car = collection.find(function(c) { return c.id === id; });
+      if (!car) return;
+
+      var body = document.getElementById('lightbox-body');
+      body.innerHTML = 
+        '<h2 style="margin-top:0;">' + (car.marque || '') + ' ' + (car.modele || 'Miniature') + '</h2>' +
+        (car.image ? '<img src="' + car.image + '" class="lightbox-img">' : '<div style="font-size:4rem; margin:20px;">🏎️</div>') +
+        '<div style="text-align:left; background:#090d16; padding:15px; border-radius:8px; font-size:0.95rem;">' +
+          '<p><strong>Fabricant :</strong> ' + (car.fabricant || '-') + '</p>' +
+          '<p><strong>Marque :</strong> ' + (car.marque || '-') + '</p>' +
+          '<p><strong>Modèle :</strong> ' + (car.modele || '-') + '</p>' +
+          '<p><strong>Série :</strong> ' + (car.serie || '-') + '</p>' +
+          '<p><strong>Année :</strong> ' + (car.annee || '-') + '</p>' +
+          '<p><strong>Couleur :</strong> ' + (car.couleur || '-') + '</p>' +
+          '<p><strong>Référence :</strong> ' + (car.ref || '-') + '</p>' +
+          '<p><strong>État :</strong> ' + (car.etat || '-') + '</p>' +
+        '</div>';
+      document.getElementById('lightbox-modal').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox-modal').classList.remove('active');
+    }
+
+    function editCar(id) {
+      var car = collection.find(function(c) { return c.id === id; });
+      if (!car) return;
+
+      document.getElementById('car-id').value = car.id;
+      document.getElementById('car-fabricant').value = car.fabricant || 'Hot Wheels';
+      document.getElementById('car-marque').value = car.marque || '';
+      document.getElementById('car-modele').value = car.modele || '';
+      document.getElementById('car-serie').value = car.serie || '';
+      document.getElementById('car-annee').value = car.annee || '';
+      document.getElementById('car-couleur').value = car.couleur || '';
+      document.getElementById('car-ref').value = car.ref || '';
+      document.getElementById('car-etat').value = car.etat || 'Neuf en boîte';
+
+      currentImageBase64 = car.image || '';
+      var imagePreview = document.getElementById('image-preview');
+      var imagePreviewContainer = document.getElementById('image-preview-container');
+
+      if (currentImageBase64) {
+        imagePreview.src = currentImageBase64;
+        imagePreviewContainer.style.display = 'block';
+      } else {
+        imagePreviewContainer.style.display = 'none';
+      }
+
+      document.getElementById('modal-title').textContent = 'Modifier la voiture';
+      checkDuplicates();
+      document.getElementById('car-modal').classList.add('active');
+    }
+
+    function deleteCar(id) {
+      if (confirm('Supprimer cette voiture ?')) {
+        collection = collection.filter(function(c) { return c.id !== id; });
+        localStorage.setItem('carCollection', JSON.stringify(collection));
+        filterAndRender();
+        updateStats();
+      }
+    }
+
+    function checkDuplicates() {
+      var id = document.getElementById('car-id').value;
+      var marque = document.getElementById('car-marque').value.trim().toLowerCase();
+      var modele = document.getElementById('car-modele').value.trim().toLowerCase();
+      var ref = document.getElementById('car-ref').value.trim().toLowerCase();
+
+      var warning = document.getElementById('duplicate-warning');
+
+      if (!marque && !modele && !ref) {
+        warning.style.display = 'none';
+        return;
+      }
+
+      var isDuplicate = collection.some(function(car) {
+        if (id && car.id === parseInt(id)) return false;
+
+        var sameRef = ref && car.ref && car.ref.toLowerCase() === ref;
+        var sameModel = marque && modele && car.marque && car.modele && car.marque.toLowerCase() === marque && car.modele.toLowerCase() === modele;
+
+        return sameRef || sameModel;
+      });
+
+      warning.style.display = isDuplicate ? 'block' : 'none';
+    }
+
+    function handleImageUpload(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        currentImageBase64 = evt.target.result;
+        document.getElementById('image-preview').src = currentImageBase64;
+        document.getElementById('image-preview-container').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveCar(e) {
+      e.preventDefault();
+      var id = document.getElementById('car-id').value;
+      var newCar = {
+        id: id ? parseInt(id) : Date.now(),
+        fabricant: document.getElementById('car-fabricant').value,
+        marque: document.getElementById('car-marque').value.trim(),
+        modele: document.getElementById('car-modele').value.trim(),
+        serie: document.getElementById('car-serie').value.trim(),
+        annee: document.getElementById('car-annee').value,
+        couleur: document.getElementById('car-couleur').value.trim(),
+        ref: document.getElementById('car-ref').value.trim(),
+        etat: document.getElementById('car-etat').value,
+        image: currentImageBase64
+      };
+
+      if (id) {
+        var idx = collection.findIndex(function(c) { return c.id === parseInt(id); });
+        if (idx !== -1) collection[idx] = newCar;
+      } else {
+        collection.push(newCar);
+      }
+
+      localStorage.setItem('carCollection', JSON.stringify(collection));
+
+      filterAndRender();
+      updateStats();
+      closeModal();
+    }
+
+    function exportJSONFile() {
+      var blob = new Blob([JSON.stringify(collection, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'collection_miniatures_sauvegarde.json';
+      a.click();
+    }
+
+    function importJSONFile(e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          collection = JSON.parse(evt.target.result);
+          localStorage.setItem('carCollection', JSON.stringify(collection));
+          filterAndRender();
+          updateStats();
+        } catch (err) {
+          alert('Fichier JSON invalide.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      renderBrandTabs();
+      filterAndRender();
+      updateStats();
+      
+      // Enregistrement du Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js')
+          .then(function() { console.log('Service Worker enregistré'); })
+          .catch(function(err) { console.error('Erreur Service Worker:', err); });
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Gestionnaire de Collection Miniatures</h1>
+      <p>Hot Wheels • Matchbox • Majorette</p>
+    </header>
+
+    <section class="stats">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div>Total Voitures</div>
+          <div class="stat-value" id="stat-total">0</div>
+        </div>
+        <div class="stat-card">
+          <div>Marques Automobile</div>
+          <div class="stat-value" id="stat-marques">0</div>
+        </div>
+      </div>
+      
+      <div class="stat-distribution">
+        <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 5px;">Répartition par Fabricant</div>
+        <div class="progress-bar-container" id="dist-bar"></div>
+        <div class="dist-legend" id="dist-legend"></div>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <input type="text" id="search-input" oninput="filterAndRender()" placeholder="Rechercher marque, modèle, référence...">
+      
+      <div class="view-toggle">
+        <button id="view-card-btn" class="view-btn active" type="button" onclick="setView('cards')">🔲 Cartes</button>
+        <button id="view-list-btn" class="view-btn" type="button" onclick="setView('list')">📑 Liste</button>
+      </div>
+
+      <button type="button" onclick="openAddModal()">+ Ajouter</button>
+      <button type="button" onclick="exportJSONFile()">Exporter JSON</button>
+      <label class="btn-upload">
+        Importer JSON
+        <input type="file" id="input-import-json" accept=".json" onchange="importJSONFile(event)" hidden>
+      </label>
+    </div>
+
+    <div class="tabs-marques" id="brand-tabs"></div>
+
+    <main id="collection-container"></main>
+  </div>
+
+  <!-- Modal Formulaire -->
+  <div class="modal" id="car-modal">
+    <div class="modal-content">
+      <h2 id="modal-title">Ajouter une voiture</h2>
+      
+      <div class="duplicate-warning" id="duplicate-warning">
+        ⚠️ <strong>Doublon potentiel :</strong> Une miniature similaire existe déjà.
+      </div>
+
+      <form id="car-form" onsubmit="saveCar(event)">
+        <input type="hidden" id="car-id">
+        
+        <div class="form-group">
+          <label for="car-fabricant">Fabricant</label>
+          <select id="car-fabricant" required>
+            <option value="Hot Wheels">Hot Wheels</option>
+            <option value="Matchbox">Matchbox</option>
+            <option value="Majorette">Majorette</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label for="car-marque">Marque</label>
+            <input type="text" id="car-marque" oninput="checkDuplicates()" required placeholder="ex: Porsche">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="car-modele">Modèle</label>
+            <input type="text" id="car-modele" oninput="checkDuplicates()" required placeholder="ex: 911 GT3">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label for="car-serie">Série</label>
+            <input type="text" id="car-serie" placeholder="ex: Mainline">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="car-annee">Année</label>
+            <input type="number" id="car-annee" placeholder="2024">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1;">
+            <label for="car-couleur">Couleur</label>
+            <input type="text" id="car-couleur" placeholder="Rouge">
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label for="car-ref">Référence</label>
+            <input type="text" id="car-ref" oninput="checkDuplicates()" placeholder="ex: HKG23">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="car-etat">État</label>
+          <select id="car-etat">
+            <option value="Neuf en boîte">Neuf en boîte</option>
+            <option value="Très bon état">Très bon état</option>
+            <option value="Joué / Abîmé">Joué / Abîmé</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Photo</label>
+          <div onclick="document.getElementById('car-image-input').click()" style="border: 2px dashed var(--border-color); padding: 10px; text-align: center; cursor: pointer;">
+            <p style="margin: 0;">Cliquez pour ajouter une image</p>
+            <input type="file" id="car-image-input" accept="image/*" onchange="handleImageUpload(event)" style="display: none;">
+            <div id="image-preview-container" style="display: none; margin-top: 10px;">
+              <img id="image-preview" src="" style="max-height: 100px; border-radius: 4px;">
+            </div>
+          </div>
+        </div>
+
+        <div class="car-actions">
+          <button type="button" onclick="closeModal()" style="background:#64748b;">Annuler</button>
+          <button type="submit">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Lightbox -->
+  <div class="modal" id="lightbox-modal">
+    <div class="lightbox-content">
+      <button class="close-btn" type="button" onclick="closeLightbox()">&times;</button>
+      <div id="lightbox-body"></div>
+    </div>
+  </div>
+
+</body>
+</html>
