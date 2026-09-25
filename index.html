@@ -84,11 +84,6 @@
       opacity: 0.9;
     }
 
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
     .btn-delete {
       background: #ef4444;
     }
@@ -100,7 +95,6 @@
     }
     .sync-status.online { color: #10b981; }
     .sync-status.syncing { color: #f59e0b; }
-    .sync-status.error { color: #ef4444; }
 
     .tabs {
       display: flex;
@@ -248,6 +242,7 @@
       border-radius: 3px;
     }
 
+    /* Modal Styles */
     .modal {
       display: none;
       position: fixed;
@@ -281,425 +276,221 @@
     }
 
     .lightbox-img {
-      max-height: 300px;
-      object-fit: contain;
-      border-radius: 6px;
-      margin-bottom: 12px;
+      max-width: 100%;
+      max-height: 70vh;
     }
 
-    .db-info {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 8px;
-      padding: 8px;
-      background: #090d16;
-      border-radius: 4px;
+    @media (max-width: 768px) {
+      .collection-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      }
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
   <script>
-    // ============= GESTION IndexedDB =============
-    const DB_NAME = 'MiniaturesCars';
+    // ==================== IndexedDB Setup ====================
+    let db;
+    const DB_NAME = 'MiniatureCollectionDB';
     const STORE_NAME = 'cars';
-    let db = null;
-    let collection = [];
+    const DB_VERSION = 1;
 
-    async function initIndexedDB() {
+    function initDB() {
       return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, 1);
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
         
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           db = request.result;
-          console.log('IndexedDB initialisée');
-          loadAllCars().then(resolve).catch(reject);
+          resolve(db);
         };
         
         request.onupgradeneeded = (event) => {
           const database = event.target.result;
           if (!database.objectStoreNames.contains(STORE_NAME)) {
             database.createObjectStore(STORE_NAME, { keyPath: 'id' });
-            console.log('Object Store créé');
           }
         };
       });
     }
 
-    async function loadAllCars() {
-      if (!db) return;
+    function getAllCars() {
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readonly');
         const store = transaction.objectStore(STORE_NAME);
         const request = store.getAll();
         
-        request.onsuccess = () => {
-          collection = request.result || [];
-          resolve();
-        };
         request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
       });
     }
 
-    async function saveCar(car) {
-      if (!db) return;
+    function saveCarsToIndexedDB(cars) {
       return new Promise((resolve, reject) => {
         const transaction = db.transaction(STORE_NAME, 'readwrite');
         const store = transaction.objectStore(STORE_NAME);
-        const request = store.put(car);
         
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-      });
-    }
-
-    async function deleteCar(id) {
-      if (!db) return;
-      return new Promise((resolve, reject) => {
-        const transaction = db.transaction(STORE_NAME, 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.delete(id);
+        // Effacer tout d'abord
+        store.clear();
         
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
+        // Ajouter tous les voitures
+        cars.forEach(car => {
+          store.put(car);
+        });
+        
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => resolve();
       });
     }
 
     async function migrateFromLocalStorage() {
       try {
         const stored = localStorage.getItem('carCollection');
-        if (stored && collection.length === 0) {
-          const oldCollection = JSON.parse(stored);
-          console.log('Migration depuis localStorage:', oldCollection.length, 'voitures');
-          
-          for (const car of oldCollection) {
-            await saveCar(car);
-          }
-          await loadAllCars();
-          localStorage.removeItem('carCollection');
-          console.log('Migration terminée');
+        if (stored) {
+          const cars = JSON.parse(stored);
+          await saveCarsToIndexedDB(cars);
+          console.log('✅ Migration depuis localStorage réussie');
+          localStorage.removeItem('carCollection'); // Nettoyage
         }
-      } catch (e) {
-        console.error('Erreur migration:', e);
+      } catch (err) {
+        console.error('Erreur migration:', err);
       }
     }
 
-    // ============= DONNÉES GLOBALES =============
-    var selectedBrand = 'Toutes';
-    var currentView = 'cards';
-    var currentImageBase64 = '';
+    // ==================== Variables globales ====================
+    let collection = [];
+    let currentView = 'cards';
+    let currentImageBase64 = '';
+    let currentBrandFilter = '';
 
-    var AUTHORIZED_BRANDS = ['Toutes', 'Hot Wheels', 'Matchbox', 'Majorette', 'Autre'];
-    var BRAND_COLORS = {
-      'Hot Wheels': '#ef4444',
-      'Matchbox': '#f59e0b',
-      'Majorette': '#10b981',
-      'Autre': '#8b5cf6'
-    };
-
-    // ============= CONFIGURATION GITHUB =============
+    // ==================== GitHub Config ====================
     function getGhConfig() {
       return {
-        user: (localStorage.getItem('gh_user') || '').trim(),
-        repo: (localStorage.getItem('gh_repo') || '').trim(),
-        token: (localStorage.getItem('gh_token') || '').trim(),
-        filePath: 'data.json'
+        user: localStorage.getItem('gh-user') || '',
+        repo: localStorage.getItem('gh-repo') || '',
+        token: localStorage.getItem('gh-token') || ''
       };
     }
 
     function saveGhConfig() {
-      var userVal = document.getElementById('gh-user').value.trim();
-      var repoVal = document.getElementById('gh-repo').value.trim();
-      var tokenVal = document.getElementById('gh-token').value.trim();
-
-      localStorage.setItem('gh_user', userVal);
-      localStorage.setItem('gh_repo', repoVal);
-      localStorage.setItem('gh_token', tokenVal);
-
-      alert('Configuration GitHub enregistrée !');
-      loadFromGitHub();
-    }
-
-    function updateSyncStatus(text, statusClass) {
-      var el = document.getElementById('sync-status');
-      if (!el) return;
-      el.textContent = text;
-      el.className = 'sync-status ' + (statusClass || '');
-    }
-
-    // ============= SYNCHRONISATION GITHUB =============
-    async function loadFromGitHub() {
-      var cfg = getGhConfig();
-      if (!cfg.user || !cfg.repo) return;
-
-      updateSyncStatus('⌛ Chargement GitHub...', 'syncing');
-      
-      var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath + '?ref=main&t=' + Date.now();
-
-      try {
-        var headers = {};
-        if (cfg.token) {
-          headers['Authorization'] = 'token ' + cfg.token;
-        }
-
-        var res = await fetch(apiUrl, { headers: headers });
-        if (res.ok) {
-          var fileData = await res.json();
-          
-          if (!fileData.content) {
-            updateSyncStatus('⚠️ Fichier data.json vide', 'error');
-            return;
-          }
-
-          var base64Cleaner = fileData.content.replace(/\s/g, '');
-          var binaryString = atob(base64Cleaner);
-          var bytes = new Uint8Array(binaryString.length);
-          for (var i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          var jsonText = new TextDecoder('utf-8').decode(bytes);
-
-          if (!jsonText || !jsonText.trim()) {
-            collection = [];
-          } else {
-            const remoteData = JSON.parse(jsonText);
-            // Fusionner avec les données locales (les données locales prioritaires)
-            for (const car of remoteData) {
-              const existing = collection.find(c => c.id === car.id);
-              if (!existing) {
-                await saveCar(car);
-              }
-            }
-          }
-
-          await loadAllCars();
-          filterAndRender();
-          updateStats();
-          updateSyncStatus('☁️ Synchronisé avec GitHub', 'online');
-        } else {
-          updateSyncStatus('⚠️ Erreur chargement GitHub', 'error');
-        }
-      } catch (err) {
-        console.error('Erreur lecture GitHub:', err);
-        updateSyncStatus('📱 Mode hors-ligne (Local)');
-      }
+      localStorage.setItem('gh-user', document.getElementById('gh-user').value);
+      localStorage.setItem('gh-repo', document.getElementById('gh-repo').value);
+      localStorage.setItem('gh-token', document.getElementById('gh-token').value);
+      alert('Configuration GitHub enregistrée');
     }
 
     async function pushToGitHub() {
-      var cfg = getGhConfig();
-      if (!cfg.user || !cfg.repo || !cfg.token) {
-        updateSyncStatus('⚠️ GitHub non configuré', 'error');
-        return;
-      }
+      const cfg = getGhConfig();
+      if (!cfg.user || !cfg.repo || !cfg.token) return;
 
-      updateSyncStatus('⌛ Sauvegarde sur GitHub...', 'syncing');
-
-      var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath;
-      
-      var jsonString = JSON.stringify(collection, null, 2);
-      var bytes = new TextEncoder().encode(jsonString);
-      var binString = Array.from(bytes, function(byte) { return String.fromCharCode(byte); }).join('');
-      var contentBase64 = btoa(binString);
-
+      updateSyncStatus('syncing');
       try {
-        var getRes = await fetch(apiUrl, {
-          headers: { 'Authorization': 'token ' + cfg.token }
-        });
-        
-        var sha = '';
-        if (getRes.ok) {
-          var fileInfo = await getRes.json();
-          sha = fileInfo.sha;
-        }
-
-        var putRes = await fetch(apiUrl, {
+        const dataJson = JSON.stringify(collection, null, 2);
+        const response = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/data.json`, {
           method: 'PUT',
           headers: {
-            'Authorization': 'token ' + cfg.token,
+            'Authorization': `token ${cfg.token}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            message: 'Mise à jour automatique de la collection (v2 - IndexedDB)',
-            content: contentBase64,
-            sha: sha || undefined
+            message: 'Mise à jour collection',
+            content: btoa(dataJson)
           })
         });
 
-        if (putRes.ok) {
-          updateSyncStatus('☁️ Sauvegardé sur GitHub !', 'online');
+        if (response.ok) {
+          updateSyncStatus('online');
+          console.log('✅ Push GitHub réussi');
         } else {
-          updateSyncStatus('❌ Erreur de sauvegarde GitHub', 'error');
+          updateSyncStatus('error');
         }
       } catch (err) {
         console.error('Erreur GitHub:', err);
-        updateSyncStatus('❌ Erreur réseau GitHub', 'error');
+        updateSyncStatus('error');
       }
     }
 
-    // ============= INTERFACE =============
-    function setView(view) {
-      currentView = view;
-      var btnCard = document.getElementById('view-card-btn');
-      var btnList = document.getElementById('view-list-btn');
-      if (btnCard) btnCard.classList.toggle('active', view === 'cards');
-      if (btnList) btnList.classList.toggle('active', view === 'list');
-      filterAndRender();
-    }
+    async function loadFromGitHub() {
+      const cfg = getGhConfig();
+      if (!cfg.user || !cfg.repo || !cfg.token) {
+        updateSyncStatus('offline');
+        return false;
+      }
 
-    function renderBrandTabs() {
-      var container = document.getElementById('brand-tabs');
-      if (!container) return;
-      container.innerHTML = '';
-      AUTHORIZED_BRANDS.forEach(function(brand) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'tab-btn ' + (brand === selectedBrand ? 'active' : '');
-        btn.textContent = brand;
-        btn.onclick = function() {
-          selectedBrand = brand;
-          renderBrandTabs();
+      try {
+        const response = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/data.json`, {
+          headers: {
+            'Authorization': `token ${cfg.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = atob(data.content);
+          const cars = JSON.parse(content);
+          
+          // ✅ Sécurité : ne pas accepter un fichier vide/invalide
+          if (!Array.isArray(cars) || cars.length === 0) {
+            console.warn('⚠️ Fichier data.json vide ou invalide sur GitHub, garde les données locales');
+            updateSyncStatus('online');
+            return true;
+          }
+          
+          collection = cars;
+          await saveCarsToIndexedDB(collection);
           filterAndRender();
-        };
-        container.appendChild(btn);
-      });
-    }
-
-    function filterAndRender() {
-      var searchInput = document.getElementById('search-input');
-      var searchTerm = (searchInput ? searchInput.value.toLowerCase() : '').trim();
-
-      var filtered = collection.filter(function(car) {
-        var matchBrand = selectedBrand === 'Toutes' || car.fabricant === selectedBrand;
-        var matchSearch = !searchTerm || 
-          (car.marque && car.marque.toLowerCase().includes(searchTerm)) ||
-          (car.modele && car.modele.toLowerCase().includes(searchTerm)) ||
-          (car.ref && car.ref.toLowerCase().includes(searchTerm));
-        return matchBrand && matchSearch;
-      });
-
-      renderCollection(filtered);
-    }
-
-    function renderCollection(data) {
-      var container = document.getElementById('collection-container');
-      if (!container) return;
-      container.innerHTML = '';
-
-      if (data.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#64748b; padding: 40px 0;">Aucune voiture trouvée.</p>';
-        return;
-      }
-
-      if (currentView === 'cards') {
-        var grid = document.createElement('div');
-        grid.className = 'collection-grid';
-        
-        data.forEach(function(car) {
-          var card = document.createElement('div');
-          card.className = 'car-card';
-          card.innerHTML = 
-            '<div>' +
-              '<div class="car-image" onclick="openLightbox(' + car.id + ')">' +
-                (car.image ? '<img src="' + car.image + '">' : '<span style="font-size:2rem;">🏎️</span>') +
-              '</div>' +
-              '<div class="car-marque-globale">' + (car.fabricant || 'Inconnu') + '</div>' +
-              '<div class="car-details">' +
-                '<div><strong>Marque :</strong> ' + (car.marque || '-') + '</div>' +
-                '<div><strong>Modèle :</strong> ' + (car.modele || '-') + '</div>' +
-                '<div><strong>Série :</strong> ' + (car.serie || '-') + '</div>' +
-                '<div><strong>Année :</strong> ' + (car.annee || '-') + '</div>' +
-                '<div><strong>Réf :</strong> ' + (car.ref || '-') + '</div>' +
-              '</div>' +
-            '</div>' +
-            '<div class="car-actions">' +
-              '<button type="button" onclick="editCar(' + car.id + ')">Éditer</button>' +
-              '<button type="button" class="btn-delete" onclick="deleteCar(' + car.id + ')">Supprimer</button>' +
-            '</div>';
-          grid.appendChild(card);
-        });
-        container.appendChild(grid);
-      } else {
-        var table = document.createElement('table');
-        table.className = 'collection-table';
-        table.innerHTML = '<thead><tr><th>Photo</th><th>Fabricant</th><th>Marque</th><th>Modèle</th><th>Réf</th><th>État</th><th>Actions</th></tr></thead><tbody></tbody>';
-        var tbody = table.querySelector('tbody');
-
-        data.forEach(function(car) {
-          var row = document.createElement('tr');
-          row.innerHTML = 
-            '<td>' + (car.image ? '<img class="table-img" src="' + car.image + '" onclick="openLightbox(' + car.id + ')">' : '🏎️') + '</td>' +
-            '<td>' + (car.fabricant || '-') + '</td>' +
-            '<td>' + (car.marque || '-') + '</td>' +
-            '<td>' + (car.modele || '-') + '</td>' +
-            '<td>' + (car.ref || '-') + '</td>' +
-            '<td>' + (car.etat || '-') + '</td>' +
-            '<td><button type="button" onclick="editCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">Éditer</button> <button type="button" class="btn-delete" onclick="deleteCar(' + car.id + ')" style="padding:4px 8px; font-size:0.8rem;">Sup</button></td>';
-          tbody.appendChild(row);
-        });
-        container.appendChild(table);
+          updateStats();
+          renderBrandTabs();
+          updateSyncStatus('online');
+          console.log('✅ Chargement GitHub réussi:', cars.length, 'voitures');
+          return true;
+        } else if (response.status === 404) {
+          console.warn('⚠️ Fichier data.json inexistant sur GitHub (premier sync)');
+          updateSyncStatus('online');
+          return true;
+        } else {
+          console.error('Erreur GitHub:', response.status);
+          updateSyncStatus('error');
+          return false;
+        }
+      } catch (err) {
+        console.error('❌ Erreur chargement GitHub:', err);
+        updateSyncStatus('error');
+        return false;
       }
     }
 
-    function updateStats() {
-      var total = collection.length;
-      var marques = [...new Set(collection.map(c => c.fabricant))].filter(Boolean).length;
-      
-      var statTotal = document.getElementById('stat-total');
-      var statMarques = document.getElementById('stat-marques');
-      if (statTotal) statTotal.textContent = total;
-      if (statMarques) statMarques.textContent = marques;
-
-      var distBar = document.getElementById('dist-bar');
-      var distLegend = document.getElementById('dist-legend');
-      if (!distBar || !distLegend) return;
-
-      distBar.innerHTML = '';
-      distLegend.innerHTML = '';
-
-      var byBrand = {};
-      AUTHORIZED_BRANDS.slice(1).forEach(b => byBrand[b] = 0);
-      collection.forEach(c => {
-        if (byBrand.hasOwnProperty(c.fabricant)) byBrand[c.fabricant]++;
-      });
-
-      var totalCount = Object.values(byBrand).reduce((a, b) => a + b, 0);
-      if (totalCount === 0) return;
-
-      Object.keys(byBrand).forEach(function(brand) {
-        var count = byBrand[brand];
-        var pct = (count / totalCount * 100).toFixed(1);
-        
-        var segment = document.createElement('div');
-        segment.className = 'progress-segment';
-        segment.style.width = pct + '%';
-        segment.style.backgroundColor = BRAND_COLORS[brand] || '#808080';
-        distBar.appendChild(segment);
-
-        var legend = document.createElement('div');
-        legend.className = 'legend-item';
-        legend.innerHTML = 
-          '<div class="legend-color" style="background-color:' + (BRAND_COLORS[brand] || '#808080') + '"></div>' +
-          '<span>' + brand + ': ' + count + ' (' + pct + '%)</span>';
-        distLegend.appendChild(legend);
-      });
+    function updateSyncStatus(status) {
+      const el = document.getElementById('sync-status');
+      if (status === 'online') {
+        el.textContent = '✅ Synchronized';
+        el.className = 'sync-status online';
+      } else if (status === 'syncing') {
+        el.textContent = '⏳ Syncing...';
+        el.className = 'sync-status syncing';
+      } else if (status === 'offline') {
+        el.textContent = '⚙️ Configure GitHub pour synchroniser';
+        el.className = 'sync-status';
+      } else if (status === 'error') {
+        el.textContent = '❌ Erreur sync - vérifiez le token';
+        el.className = 'sync-status';
+      }
     }
 
-    function openLightbox(id) {
-      var car = collection.find(c => c.id === id);
-      if (!car) return;
-
-      var body = document.getElementById('lightbox-body');
-      body.innerHTML = car.image ? '<img class="lightbox-img" src="' + car.image + '">' : '<p>Pas d\'image</p>';
-      document.getElementById('lightbox-modal').classList.add('active');
-    }
-
-    function closeLightbox() {
-      document.getElementById('lightbox-modal').classList.remove('active');
-    }
-
+    // ==================== Interface Functions ====================
     function openAddModal() {
       currentImageBase64 = '';
-      document.getElementById('car-form').reset();
       document.getElementById('car-id').value = '';
       document.getElementById('car-fabricant').value = 'Hot Wheels';
+      document.getElementById('car-marque').value = '';
+      document.getElementById('car-modele').value = '';
+      document.getElementById('car-serie').value = '';
+      document.getElementById('car-annee').value = '';
+      document.getElementById('car-couleur').value = '';
+      document.getElementById('car-ref').value = '';
       document.getElementById('car-etat').value = 'Neuf en boîte';
       document.getElementById('image-preview-container').style.display = 'none';
       document.getElementById('modal-title').textContent = 'Ajouter une voiture';
@@ -712,8 +503,187 @@
       currentImageBase64 = '';
     }
 
-    function editCar(id) {
-      var car = collection.find(c => c.id === id);
+    function openLightbox(imageSrc) {
+      const body = document.getElementById('lightbox-body');
+      body.innerHTML = `<img src="${imageSrc}" class="lightbox-img" alt="Miniature">`;
+      document.getElementById('lightbox-modal').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox-modal').classList.remove('active');
+    }
+
+    function setView(view) {
+      currentView = view;
+      document.getElementById('view-card-btn').classList.toggle('active', view === 'cards');
+      document.getElementById('view-list-btn').classList.toggle('active', view === 'list');
+      filterAndRender();
+    }
+
+    function renderBrandTabs() {
+      const brands = [...new Set(collection.map(c => c.marque || 'Sans marque'))].sort();
+      const container = document.getElementById('brand-tabs');
+      container.innerHTML = '';
+
+      const allBtn = document.createElement('button');
+      allBtn.textContent = '📍 Toutes';
+      allBtn.className = 'tab-btn active';
+      allBtn.onclick = () => setCurrentBrand('');
+      container.appendChild(allBtn);
+
+      brands.forEach(brand => {
+        const btn = document.createElement('button');
+        btn.textContent = brand;
+        btn.className = 'tab-btn';
+        btn.onclick = () => setCurrentBrand(brand);
+        container.appendChild(btn);
+      });
+    }
+
+    function setCurrentBrand(brand) {
+      currentBrandFilter = brand;
+      document.querySelectorAll('.tab-btn').forEach((btn, idx) => {
+        btn.classList.toggle('active', (idx === 0 && brand === '') || (btn.textContent === brand));
+      });
+      filterAndRender();
+    }
+
+    function filterAndRender() {
+      let filtered = collection;
+
+      if (currentBrandFilter) {
+        filtered = filtered.filter(c => c.marque === currentBrandFilter);
+      }
+
+      const search = document.getElementById('search-input')?.value.toLowerCase() || '';
+      if (search) {
+        filtered = filtered.filter(c =>
+          (c.marque + ' ' + c.modele + ' ' + c.serie).toLowerCase().includes(search)
+        );
+      }
+
+      const container = document.getElementById('collection-container');
+      if (currentView === 'cards') {
+        renderCards(filtered, container);
+      } else {
+        renderTable(filtered, container);
+      }
+    }
+
+    function renderCards(cars, container) {
+      container.innerHTML = '';
+      const grid = document.createElement('div');
+      grid.className = 'collection-grid';
+
+      cars.forEach(car => {
+        const card = document.createElement('div');
+        card.className = 'car-card';
+        card.innerHTML = `
+          <div>
+            <div class="car-image" onclick="openLightbox('${car.image || ''}')">
+              ${car.image ? `<img src="${car.image}" alt="${car.marque}">` : '📷'}
+            </div>
+            <div class="car-marque-globale">${car.marque}</div>
+            <div class="car-details">
+              <strong>${car.modele}</strong><br>
+              ${car.serie ? `Série: ${car.serie}<br>` : ''}
+              Ref: ${car.ref || 'N/A'}<br>
+              État: ${car.etat}
+            </div>
+          </div>
+          <div class="car-actions">
+            <button onclick="editCar(${car.id})">✏️ Éditer</button>
+            <button class="btn-delete" onclick="deleteCar(${car.id})">🗑️</button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      container.appendChild(grid);
+    }
+
+    function renderTable(cars, container) {
+      container.innerHTML = '';
+      const table = document.createElement('table');
+      table.className = 'collection-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Marque</th>
+            <th>Modèle</th>
+            <th>Série</th>
+            <th>Ref</th>
+            <th>État</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cars.map(car => `
+            <tr>
+              <td>
+                ${car.image ? `<img src="${car.image}" class="table-img" onclick="openLightbox('${car.image}')" alt="${car.marque}">` : '-'}
+              </td>
+              <td>${car.marque}</td>
+              <td>${car.modele}</td>
+              <td>${car.serie || '-'}</td>
+              <td>${car.ref || '-'}</td>
+              <td>${car.etat}</td>
+              <td>
+                <button onclick="editCar(${car.id})" style="margin-bottom:4px;">✏️</button>
+                <button class="btn-delete" onclick="deleteCar(${car.id})">🗑️</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      `;
+      container.appendChild(table);
+    }
+
+    function updateStats() {
+      const total = collection.length;
+      const marques = new Set(collection.map(c => c.marque || 'Sans marque')).size;
+      const etatCounts = {
+        'Neuf en boîte': 0,
+        'Loose (Très bon)': 0,
+        'Loose (Joué)': 0
+      };
+
+      collection.forEach(c => {
+        if (etatCounts.hasOwnProperty(c.etat)) etatCounts[c.etat]++;
+      });
+
+      document.getElementById('stat-total').textContent = total;
+      document.getElementById('stat-marques').textContent = marques;
+
+      const bar = document.getElementById('dist-bar');
+      bar.innerHTML = '';
+      const colors = { 'Neuf en boîte': '#10b981', 'Loose (Très bon)': '#f59e0b', 'Loose (Joué)': '#ef4444' };
+      const legend = document.getElementById('dist-legend');
+      legend.innerHTML = '';
+
+      for (const [etat, color] of Object.entries(colors)) {
+        const count = etatCounts[etat];
+        const width = (count / total) * 100 || 0;
+
+        const segment = document.createElement('div');
+        segment.className = 'progress-segment';
+        segment.style.width = width + '%';
+        segment.style.backgroundColor = color;
+        bar.appendChild(segment);
+
+        const legendItem = document.createElement('div');
+        legendItem.className = 'legend-item';
+        legendItem.innerHTML = `
+          <div class="legend-color" style="background-color:${color}"></div>
+          <span>${etat}: ${count}</span>
+        `;
+        legend.appendChild(legendItem);
+      }
+    }
+
+    async function editCar(id) {
+      const car = collection.find(c => c.id === id);
       if (!car) return;
 
       document.getElementById('car-id').value = car.id;
@@ -727,8 +697,8 @@
       document.getElementById('car-etat').value = car.etat || 'Neuf en boîte';
 
       currentImageBase64 = car.image || '';
-      var imagePreview = document.getElementById('image-preview');
-      var imagePreviewContainer = document.getElementById('image-preview-container');
+      const imagePreview = document.getElementById('image-preview');
+      const imagePreviewContainer = document.getElementById('image-preview-container');
 
       if (currentImageBase64) {
         imagePreview.src = currentImageBase64;
@@ -742,10 +712,10 @@
       document.getElementById('car-modal').classList.add('active');
     }
 
-    async function deleteCarWithConfirm(id) {
+    async function deleteCar(id) {
       if (confirm('Supprimer cette voiture ?')) {
-        collection = collection.filter(function(c) { return c.id !== id; });
-        await deleteCar(id);
+        collection = collection.filter(c => c.id !== id);
+        await saveCarsToIndexedDB(collection);
         filterAndRender();
         updateStats();
         pushToGitHub();
@@ -753,23 +723,24 @@
     }
 
     function checkDuplicates() {
-      var id = document.getElementById('car-id').value;
-      var marque = document.getElementById('car-marque').value.trim().toLowerCase();
-      var modele = document.getElementById('car-modele').value.trim().toLowerCase();
-      var ref = document.getElementById('car-ref').value.trim().toLowerCase();
+      const id = document.getElementById('car-id').value;
+      const marque = document.getElementById('car-marque').value.trim().toLowerCase();
+      const modele = document.getElementById('car-modele').value.trim().toLowerCase();
+      const ref = document.getElementById('car-ref').value.trim().toLowerCase();
 
-      var warning = document.getElementById('duplicate-warning');
+      const warning = document.getElementById('duplicate-warning');
 
       if (!marque && !modele && !ref) {
         warning.style.display = 'none';
         return;
       }
 
-      var isDuplicate = collection.some(function(car) {
+      const isDuplicate = collection.some(car => {
         if (id && car.id === parseInt(id)) return false;
 
-        var sameRef = ref && car.ref && car.ref.toLowerCase() === ref;
-        var sameModel = marque && modele && car.marque && car.modele && car.marque.toLowerCase() === marque && car.modele.toLowerCase() === modele;
+        const sameRef = ref && car.ref && car.ref.toLowerCase() === ref;
+        const sameModel = marque && modele && car.marque && car.modele &&
+          car.marque.toLowerCase() === marque && car.modele.toLowerCase() === modele;
 
         return sameRef || sameModel;
       });
@@ -778,10 +749,10 @@
     }
 
     function handleImageUpload(e) {
-      var file = e.target.files[0];
+      const file = e.target.files[0];
       if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function(evt) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
         currentImageBase64 = evt.target.result;
         document.getElementById('image-preview').src = currentImageBase64;
         document.getElementById('image-preview-container').style.display = 'block';
@@ -789,10 +760,10 @@
       reader.readAsDataURL(file);
     }
 
-    async function saveCarData(e) {
+    async function saveCar(e) {
       e.preventDefault();
-      var id = document.getElementById('car-id').value;
-      var newCar = {
+      const id = document.getElementById('car-id').value;
+      const newCar = {
         id: id ? parseInt(id) : Date.now(),
         fabricant: document.getElementById('car-fabricant').value,
         marque: document.getElementById('car-marque').value.trim(),
@@ -806,42 +777,40 @@
       };
 
       if (id) {
-        var idx = collection.findIndex(function(c) { return c.id === parseInt(id); });
+        const idx = collection.findIndex(c => c.id === parseInt(id));
         if (idx !== -1) collection[idx] = newCar;
       } else {
         collection.push(newCar);
       }
 
-      await saveCar(newCar);
+      await saveCarsToIndexedDB(collection);
       filterAndRender();
       updateStats();
+      renderBrandTabs();
       closeModal();
       pushToGitHub();
     }
 
     function exportJSONFile() {
-      var blob = new Blob([JSON.stringify(collection, null, 2)], { type: 'application/json' });
-      var a = document.createElement('a');
+      const blob = new Blob([JSON.stringify(collection, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'collection_miniatures_sauvegarde.json';
       a.click();
     }
 
     function importJSONFile(e) {
-      var file = e.target.files[0];
+      const file = e.target.files[0];
       if (!file) return;
-      var reader = new FileReader();
-      reader.onload = async function(evt) {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
         try {
-          const imported = JSON.parse(evt.target.result);
-          for (const car of imported) {
-            await saveCar(car);
-          }
-          await loadAllCars();
+          collection = JSON.parse(evt.target.result);
+          await saveCarsToIndexedDB(collection);
           filterAndRender();
           updateStats();
+          renderBrandTabs();
           pushToGitHub();
-          alert('Import réussi !');
         } catch (err) {
           alert('Fichier JSON invalide.');
         }
@@ -852,45 +821,41 @@
     document.addEventListener('DOMContentLoaded', async function() {
       try {
         // Initialiser IndexedDB
-        await initIndexedDB();
-        console.log('IndexedDB chargé avec', collection.length, 'voitures');
+        await initDB();
         
         // Migrer depuis localStorage si nécessaire
         await migrateFromLocalStorage();
         
-        var cfg = getGhConfig();
+        // Charger les données depuis IndexedDB
+        collection = await getAllCars();
+
+        // Restaurer config GitHub
+        const cfg = getGhConfig();
         if (document.getElementById('gh-user')) document.getElementById('gh-user').value = cfg.user;
         if (document.getElementById('gh-repo')) document.getElementById('gh-repo').value = cfg.repo;
         if (document.getElementById('gh-token')) document.getElementById('gh-token').value = cfg.token;
 
+        // Essayer de charger depuis GitHub (attendre la réponse!)
+        await loadFromGitHub();
+        
+        // Afficher les données (locales ou de GitHub)
         renderBrandTabs();
         filterAndRender();
         updateStats();
-        
-        loadFromGitHub();
 
         // Nettoyage automatique du Service Worker
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(registrations) {
-            for (var r of registrations) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (const r of registrations) {
               r.unregister();
             }
           });
         }
-
-        // Afficher info de stockage
-        updateStorageInfo();
       } catch (err) {
         console.error('Erreur initialisation:', err);
-        alert('Erreur lors de l\'initialisation: ' + err.message);
+        updateSyncStatus('error');
       }
     });
-
-    function updateStorageInfo() {
-      var info = document.getElementById('db-info');
-      if (!info) return;
-      info.textContent = '📊 IndexedDB actif | ' + collection.length + ' voiture(s) stockée(s)';
-    }
   </script>
 </head>
 <body>
@@ -902,7 +867,7 @@
 
     <!-- Configuration GitHub -->
     <div class="config-panel">
-      <strong>⚙️ Synchronisation GitHub</strong>
+      <strong>⚙️ Synchronisation GitHub Sync</strong>
       <div class="config-grid">
         <input type="text" id="gh-user" placeholder="Nom d'utilisateur GitHub">
         <input type="text" id="gh-repo" placeholder="Nom du dépôt (ex: miniatures)">
@@ -910,7 +875,6 @@
         <button onclick="saveGhConfig()">Enregistrer</button>
       </div>
       <div id="sync-status" class="sync-status">Initialisation...</div>
-      <div id="db-info" class="db-info">Chargement IndexedDB...</div>
     </div>
 
     <!-- Statistiques -->
@@ -946,7 +910,7 @@
   <div class="modal" id="car-modal">
     <div class="modal-content">
       <h2 id="modal-title">Ajouter une voiture</h2>
-      <form id="car-form" onsubmit="saveCarData(event)">
+      <form id="car-form" onsubmit="saveCar(event)">
         <input type="hidden" id="car-id">
         <div class="form-group">
           <label>Fabricant :</label>
