@@ -3,238 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestionnaire de Collection Miniatures</title>
-  
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f172a">
-
+  <title>Ma Collection de Miniatures</title>
   <style>
     :root {
       --bg-color: #0f172a;
       --card-bg: #1e293b;
-      --text-color: #f8fafc;
-      --accent-color: #3b82f6;
-      --border-color: #334155;
-      --danger-color: #ef4444;
-      --warning-color: #f59e0b;
-      --success-color: #10b981;
+      --accent: #3b82f6;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
     }
+
     body {
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       background-color: var(--bg-color);
-      color: var(--text-color);
+      color: var(--text);
       margin: 0;
       padding: 20px;
     }
+
     .container {
-      max-width: 1100px;
+      max-width: 1200px;
       margin: 0 auto;
     }
+
     header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .stats {
       display: flex;
-      flex-direction: column;
-      gap: 15px;
-      margin-bottom: 20px;
-    }
-    .stats-row {
-      display: flex;
-      gap: 15px;
-    }
-    .stat-card {
-      background: var(--card-bg);
-      padding: 15px;
-      border-radius: 8px;
-      flex: 1;
-      text-align: center;
-      border: 1px solid var(--border-color);
-    }
-    .stat-value {
-      font-size: 1.8rem;
-      font-weight: bold;
-      color: var(--accent-color);
-    }
-    .stat-distribution {
-      background: var(--card-bg);
-      padding: 15px;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-    }
-    .progress-bar-container {
-      display: flex;
-      height: 12px;
-      background: #090d16;
-      border-radius: 6px;
-      overflow: hidden;
-      margin: 10px 0;
-    }
-    .progress-segment {
-      height: 100%;
-      transition: width 0.3s ease;
-    }
-    .dist-legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      font-size: 0.85rem;
-      justify-content: center;
-    }
-    .legend-item {
-      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 6px;
-    }
-    .legend-color {
-      width: 12px;
-      height: 12px;
-      border-radius: 3px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
     }
 
-    .github-config {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
+    h1 {
+      margin: 0;
+      font-size: 1.8rem;
     }
-    .github-inputs {
+
+    .config-panel {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+
+    .config-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 10px;
+      gap: 12px;
       margin-top: 10px;
     }
 
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    input[type="text"], input[type="number"], input[type="password"], select {
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      color: var(--text-color);
-      padding: 10px;
+    input, select, button {
+      background: #090d16;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
       border-radius: 6px;
-      width: 100%;
-      box-sizing: border-box;
+      font-size: 0.9rem;
     }
-    .toolbar input[type="text"] {
-      flex: 1;
-      min-width: 200px;
-    }
-    button, .btn-upload {
-      background: var(--accent-color);
+
+    button {
+      background: var(--accent);
       color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
-      display: inline-block;
+      border: none;
+      font-weight: 600;
     }
-    button:hover, .btn-upload:hover { opacity: 0.9; }
-    
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .btn-delete {
+      background: #ef4444;
+    }
+
     .sync-status {
       font-size: 0.85rem;
-      padding: 6px 12px;
-      border-radius: 20px;
-      background: #334155;
+      margin-top: 8px;
+      color: var(--text-muted);
     }
-    .sync-status.online { background: rgba(16, 185, 129, 0.2); color: var(--success-color); }
-    .sync-status.syncing { background: rgba(245, 158, 11, 0.2); color: var(--warning-color); }
+    .sync-status.online { color: #10b981; }
+    .sync-status.syncing { color: #f59e0b; }
 
-    .view-toggle {
+    .tabs {
       display: flex;
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      overflow: hidden;
-    }
-    .view-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-color);
-      padding: 8px 12px;
-      border-radius: 0;
-    }
-    .view-btn.active {
-      background: var(--accent-color);
+      gap: 8px;
+      margin-bottom: 16px;
+      overflow-x: auto;
+      padding-bottom: 4px;
     }
 
-    .tabs-marques {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
     .tab-btn {
       background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      color: var(--text-color);
+      border: 1px solid var(--border);
     }
+
     .tab-btn.active {
-      background: var(--accent-color);
+      background: var(--accent);
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
     .collection-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 20px;
+      gap: 16px;
     }
+
     .car-card {
       background: var(--card-bg);
       border-radius: 8px;
-      border: 1px solid var(--border-color);
-      overflow: hidden;
+      border: 1px solid var(--border);
+      padding: 12px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 15px;
     }
+
     .car-image {
+      width: 100%;
       height: 140px;
-      background: #090d16;
+      object-fit: cover;
       border-radius: 6px;
+      background: #090d16;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 12px;
-      overflow: hidden;
       cursor: pointer;
+      overflow: hidden;
     }
+
     .car-image img {
       width: 100%;
       height: 100%;
       object-fit: cover;
     }
+
     .car-marque-globale {
-      color: var(--accent-color);
       font-weight: bold;
-      text-transform: uppercase;
+      color: var(--accent);
+      margin: 8px 0 4px 0;
+    }
+
+    .car-details {
       font-size: 0.85rem;
-      margin-bottom: 8px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
     }
-    .car-details div {
-      font-size: 0.9rem;
-      margin-bottom: 4px;
-      color: #cbd5e1;
-    }
+
     .car-actions {
       display: flex;
       gap: 8px;
-      margin-top: 15px;
     }
+
     .car-actions button {
       flex: 1;
-    }
-    .btn-delete {
-      background: transparent;
-      border: 1px solid var(--danger-color);
-      color: var(--danger-color);
     }
 
     .collection-table {
@@ -243,87 +177,105 @@
       background: var(--card-bg);
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid var(--border-color);
     }
+
     .collection-table th, .collection-table td {
-      padding: 12px 15px;
+      padding: 10px;
       text-align: left;
-      border-bottom: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
     }
-    .collection-table th {
-      background: #090d16;
-      color: var(--accent-color);
-    }
+
     .table-img {
-      width: 45px;
-      height: 35px;
+      width: 40px;
+      height: 40px;
       object-fit: cover;
       border-radius: 4px;
       cursor: pointer;
     }
 
+    .stats-bar {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .progress-bar {
+      display: flex;
+      height: 12px;
+      background: #090d16;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-segment {
+      height: 100%;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    /* Modal Styles */
     .modal {
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.8);
-      align-items: center;
+      background: rgba(0,0,0,0.7);
       justify-content: center;
+      align-items: center;
       z-index: 1000;
     }
-    .modal.active { display: flex; }
+
+    .modal.active {
+      display: flex;
+    }
+
     .modal-content {
       background: var(--card-bg);
-      padding: 25px;
-      border-radius: 10px;
-      max-width: 450px;
-      width: 100%;
+      padding: 24px;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 500px;
       max-height: 90vh;
       overflow-y: auto;
+      border: 1px solid var(--border);
     }
-    .duplicate-warning {
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid var(--warning-color);
-      color: var(--warning-color);
-      padding: 10px;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      font-size: 0.85rem;
-      display: none;
-    }
-    .form-group { margin-bottom: 12px; }
-    .form-row { display: flex; gap: 10px; }
-    label { display: block; font-size: 0.85rem; margin-bottom: 4px; }
 
-    .lightbox-content {
-      background: var(--card-bg);
-      padding: 20px;
-      border-radius: 10px;
-      max-width: 650px;
-      width: 90%;
-      text-align: center;
-      position: relative;
+    .form-group {
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
+
     .lightbox-img {
       max-width: 100%;
-      max-height: 350px;
-      border-radius: 8px;
+      max-height: 300px;
       object-fit: contain;
-      background: #090d16;
-      margin-bottom: 15px;
-    }
-    .close-btn {
-      position: absolute;
-      top: 10px;
-      right: 15px;
-      background: transparent;
-      font-size: 1.5rem;
-      border: none;
-      color: white;
-      cursor: pointer;
+      border-radius: 6px;
+      margin-bottom: 12px;
     }
   </style>
-
   <script>
     var collection = [];
     try {
@@ -344,72 +296,27 @@
       'Autre': '#8b5cf6'
     };
 
-    // --- LOGIQUE GITHUB API ---
-   function getGhConfig() {
-  return {
-    user: (localStorage.getItem('gh_user') || '').trim(),
-    repo: (localStorage.getItem('gh_repo') || '').trim(),
-    token: (localStorage.getItem('gh_token') || '').trim(),
-    filePath: 'data.json'
-  };
-}
-
-function saveGhConfig() {
-  var userVal = document.getElementById('gh-user').value.trim();
-  var repoVal = document.getElementById('gh-repo').value.trim();
-  var tokenVal = document.getElementById('gh-token').value.trim();
-
-  localStorage.setItem('gh_user', userVal);
-  localStorage.setItem('gh_repo', repoVal);
-  localStorage.setItem('gh_token', tokenVal);
-
-  alert('Configuration enregistrée !');
-  
-  // Rechargement explicite des données depuis GitHub
-  loadFromGitHub();
-}
-      // Télécharge la collection depuis l'API GitHub directement (Compatible Firefox & caractères spéciaux)
-async function loadFromGitHub() {
-  var cfg = getGhConfig();
-  if (!cfg.user || !cfg.repo) return;
-
-  updateSyncStatus('⌛ Chargement GitHub...', 'syncing');
-  
-  var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath + '?ref=main&t=' + Date.now();
-
-  try {
-    var headers = {};
-    if (cfg.token) {
-      headers['Authorization'] = 'token ' + cfg.token;
+    // --- CONFIGURATION GITHUB ---
+    function getGhConfig() {
+      return {
+        user: (localStorage.getItem('gh_user') || '').trim(),
+        repo: (localStorage.getItem('gh_repo') || '').trim(),
+        token: (localStorage.getItem('gh_token') || '').trim(),
+        filePath: 'data.json'
+      };
     }
 
-    var res = await fetch(apiUrl, { headers: headers });
-    if (res.ok) {
-      var fileData = await res.json();
-      
-      // Décodage du contenu Base64 sécurisé pour Firefox et UTF-8
-      var base64Cleaner = fileData.content.replace(/\s/g, '');
-      var binaryString = atob(base64Cleaner);
-      var bytes = new Uint8Array(binaryString.length);
-      for (var i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      var jsonText = new TextDecoder('utf-8').decode(bytes);
-      var remoteData = JSON.parse(jsonText);
+    function saveGhConfig() {
+      var userVal = document.getElementById('gh-user').value.trim();
+      var repoVal = document.getElementById('gh-repo').value.trim();
+      var tokenVal = document.getElementById('gh-token').value.trim();
 
-      collection = remoteData;
-      localStorage.setItem('carCollection', JSON.stringify(collection));
-      filterAndRender();
-      updateStats();
-      updateSyncStatus('☁️ Synchronisé avec GitHub', 'online');
-    } else {
-      updateSyncStatus('⚠️ Erreur chargement GitHub');
-    }
-  } catch (err) {
-    console.error('Erreur décodage / affichage:', err);
-    updateSyncStatus('📱 Mode hors-ligne (Local)');
-  }
-}
+      localStorage.setItem('gh_user', userVal);
+      localStorage.setItem('gh_repo', repoVal);
+      localStorage.setItem('gh_token', tokenVal);
+
+      alert('Configuration GitHub enregistrée !');
+      loadFromGitHub();
     }
 
     function updateSyncStatus(text, statusClass) {
@@ -419,7 +326,7 @@ async function loadFromGitHub() {
       el.className = 'sync-status ' + (statusClass || '');
     }
 
-    // Télécharge la collection depuis l'API GitHub directement (Bypass du cache)
+    // --- LECTURE GITHUB ---
     async function loadFromGitHub() {
       var cfg = getGhConfig();
       if (!cfg.user || !cfg.repo) return;
@@ -438,9 +345,13 @@ async function loadFromGitHub() {
         if (res.ok) {
           var fileData = await res.json();
           
-          // Décodage du contenu JSON depuis GitHub
-          var bytes = Uint8Array.from(atob(fileData.content.replace(/\s/g, '')), function(c) { return c.charCodeAt(0); });
-          var jsonText = new TextDecoder().decode(bytes);
+          var base64Cleaner = fileData.content.replace(/\s/g, '');
+          var binaryString = atob(base64Cleaner);
+          var bytes = new Uint8Array(binaryString.length);
+          for (var i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          var jsonText = new TextDecoder('utf-8').decode(bytes);
           var remoteData = JSON.parse(jsonText);
 
           collection = remoteData;
@@ -452,11 +363,12 @@ async function loadFromGitHub() {
           updateSyncStatus('⚠️ Erreur chargement GitHub');
         }
       } catch (err) {
+        console.error('Erreur lecture GitHub:', err);
         updateSyncStatus('📱 Mode hors-ligne (Local)');
       }
     }
 
-    // Envoie la collection modifiée directement sur GitHub (Compatible Firefox)
+    // --- ÉCRITURE GITHUB ---
     async function pushToGitHub() {
       var cfg = getGhConfig();
       if (!cfg.user || !cfg.repo || !cfg.token) {
@@ -468,14 +380,12 @@ async function loadFromGitHub() {
 
       var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath;
       
-      // Encodage Base64 UTF-8 universel (compatible Firefox)
       var jsonString = JSON.stringify(collection, null, 2);
       var bytes = new TextEncoder().encode(jsonString);
       var binString = Array.from(bytes, function(byte) { return String.fromCharCode(byte); }).join('');
       var contentBase64 = btoa(binString);
 
       try {
-        // 1. Récupérer la clef SHA du fichier existant
         var getRes = await fetch(apiUrl, {
           headers: { 'Authorization': 'token ' + cfg.token }
         });
@@ -486,7 +396,6 @@ async function loadFromGitHub() {
           sha = fileInfo.sha;
         }
 
-        // 2. Mettre à jour le fichier
         var putRes = await fetch(apiUrl, {
           method: 'PUT',
           headers: {
@@ -512,8 +421,10 @@ async function loadFromGitHub() {
 
     function setView(view) {
       currentView = view;
-      document.getElementById('view-card-btn').classList.toggle('active', view === 'cards');
-      document.getElementById('view-list-btn').classList.toggle('active', view === 'list');
+      var btnCard = document.getElementById('view-card-btn');
+      var btnList = document.getElementById('view-list-btn');
+      if (btnCard) btnCard.classList.toggle('active', view === 'cards');
+      if (btnList) btnList.classList.toggle('active', view === 'list');
       filterAndRender();
     }
 
@@ -616,9 +527,14 @@ async function loadFromGitHub() {
     }
 
     function updateStats() {
-      document.getElementById('stat-total').textContent = collection.length;
-      var marques = new Set(collection.map(function(c) { return c.marque; }).filter(Boolean));
-      document.getElementById('stat-marques').textContent = marques.size;
+      var statTotal = document.getElementById('stat-total');
+      var statMarques = document.getElementById('stat-marques');
+      if (statTotal) statTotal.textContent = collection.length;
+      
+      if (statMarques) {
+        var marques = new Set(collection.map(function(c) { return c.marque; }).filter(Boolean));
+        statMarques.textContent = marques.size;
+      }
 
       var total = collection.length;
       var counts = {};
@@ -631,6 +547,8 @@ async function loadFromGitHub() {
 
       var distBar = document.getElementById('dist-bar');
       var distLegend = document.getElementById('dist-legend');
+      if (!distBar || !distLegend) return;
+      
       distBar.innerHTML = '';
       distLegend.innerHTML = '';
 
@@ -661,7 +579,8 @@ async function loadFromGitHub() {
     }
 
     function openAddModal() {
-      document.getElementById('car-form').reset();
+      var form = document.getElementById('car-form');
+      if (form) form.reset();
       currentImageBase64 = '';
       document.getElementById('image-preview-container').style.display = 'none';
       document.getElementById('car-id').value = '';
@@ -735,7 +654,6 @@ async function loadFromGitHub() {
         localStorage.setItem('carCollection', JSON.stringify(collection));
         filterAndRender();
         updateStats();
-        
         pushToGitHub();
       }
     }
@@ -805,7 +723,6 @@ async function loadFromGitHub() {
       filterAndRender();
       updateStats();
       closeModal();
-
       pushToGitHub();
     }
 
@@ -847,175 +764,138 @@ async function loadFromGitHub() {
       
       loadFromGitHub();
 
+      // Nettoyage automatique du Service Worker
       if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(registrations) {
-    for (let registration of registrations) {
-      registration.unregister();
-    }
-  });
-}
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var r of registrations) {
+            r.unregister();
+          }
+        });
+      }
     });
   </script>
 </head>
 <body>
-
   <div class="container">
     <header>
-      <h1>Gestionnaire de Collection Miniatures</h1>
-      <p>Hot Wheels • Matchbox • Majorette</p>
+      <h1>🏎️ Ma Collection de Miniatures</h1>
+      <button onclick="openAddModal()">+ Ajouter une voiture</button>
     </header>
 
-    <!-- Configuration GitHub visible -->
-    <section class="github-config">
-      <h3 style="margin-top:0; color: var(--accent-color);">⚙️ Configuration de la Synchronisation GitHub</h3>
-      <div class="github-inputs">
-        <div>
-          <label for="gh-user">Nom d'utilisateur GitHub</label>
-          <input type="text" id="gh-user" placeholder="ex: mon-pseudo">
-        </div>
-        <div>
-          <label for="gh-repo">Nom du Dépôt GitHub</label>
-          <input type="text" id="gh-repo" placeholder="ex: mes-miniatures">
-        </div>
-        <div>
-          <label for="gh-token">Jeton GitHub (Token)</label>
-          <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
-        </div>
+    <!-- Configuration GitHub -->
+    <div class="config-panel">
+      <strong>⚙️ Synchronisation GitHub Sync</strong>
+      <div class="config-grid">
+        <input type="text" id="gh-user" placeholder="Nom d'utilisateur GitHub">
+        <input type="text" id="gh-repo" placeholder="Nom du dépôt (ex: miniatures)">
+        <input type="password" id="gh-token" placeholder="Token d'accès (PAT)">
+        <button onclick="saveGhConfig()">Enregistrer</button>
       </div>
-      <button type="button" onclick="saveGhConfig()" style="margin-top:15px;">Enregistrer la configuration</button>
-    </section>
-
-    <section class="stats">
-      <div class="stats-row">
-        <div class="stat-card">
-          <div>Total Voitures</div>
-          <div class="stat-value" id="stat-total">0</div>
-        </div>
-        <div class="stat-card">
-          <div>Marques Automobile</div>
-          <div class="stat-value" id="stat-marques">0</div>
-        </div>
-      </div>
-      
-      <div class="stat-distribution">
-        <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 5px;">Répartition par Fabricant</div>
-        <div class="progress-bar-container" id="dist-bar"></div>
-        <div class="dist-legend" id="dist-legend"></div>
-      </div>
-    </section>
-
-    <div class="toolbar">
-      <input type="text" id="search-input" oninput="filterAndRender()" placeholder="Rechercher marque, modèle, référence...">
-      
-      <div class="view-toggle">
-        <button id="view-card-btn" class="view-btn active" type="button" onclick="setView('cards')">🔲 Cartes</button>
-        <button id="view-list-btn" class="view-btn" type="button" onclick="setView('list')">📑 Liste</button>
-      </div>
-
-      <button type="button" onclick="openAddModal()">+ Ajouter</button>
-      <span class="sync-status" id="sync-status">📱 Mode Hors-ligne</span>
-      <button type="button" onclick="exportJSONFile()">Exporter JSON</button>
-      <label class="btn-upload">
-        Importer JSON
-        <input type="file" id="input-import-json" accept=".json" onchange="importJSONFile(event)" hidden>
-      </label>
+      <div id="sync-status" class="sync-status">Hors-ligne</div>
     </div>
 
-    <div class="tabs-marques" id="brand-tabs"></div>
+    <!-- Statistiques -->
+    <div class="stats-bar">
+      <div>
+        Total : <strong id="stat-total">0</strong> voitures |
+        Marques : <strong id="stat-marques">0</strong>
+      </div>
+      <div class="progress-bar" id="dist-bar"></div>
+      <div class="legend" id="dist-legend"></div>
+    </div>
 
-    <main id="collection-container"></main>
+    <!-- Onglets Marques -->
+    <div class="tabs" id="brand-tabs"></div>
+
+    <!-- Contrôles -->
+    <div class="controls">
+      <input type="text" id="search-input" placeholder="Rechercher..." oninput="filterAndRender()" style="width:250px;">
+      <div>
+        <button id="view-card-btn" class="active" onclick="setView('cards')">🎴 Cartes</button>
+        <button id="view-list-btn" onclick="setView('list')">📋 Liste</button>
+        <button onclick="exportJSONFile()">💾 Exporter</button>
+        <button onclick="document.getElementById('import-file').click()">📂 Importer</button>
+        <input type="file" id="import-file" style="display:none" onchange="importJSONFile(event)">
+      </div>
+    </div>
+
+    <!-- Container de collection -->
+    <div id="collection-container"></div>
   </div>
 
-  <!-- Modal Formulaire -->
+  <!-- Modal Ajout / Édition -->
   <div class="modal" id="car-modal">
     <div class="modal-content">
       <h2 id="modal-title">Ajouter une voiture</h2>
-      
-      <div class="duplicate-warning" id="duplicate-warning">
-        ⚠️ <strong>Doublon potentiel :</strong> Une miniature similaire existe déjà.
-      </div>
-
       <form id="car-form" onsubmit="saveCar(event)">
         <input type="hidden" id="car-id">
-        
         <div class="form-group">
-          <label for="car-fabricant">Fabricant</label>
-          <select id="car-fabricant" required>
+          <label>Fabricant :</label>
+          <select id="car-fabricant">
             <option value="Hot Wheels">Hot Wheels</option>
             <option value="Matchbox">Matchbox</option>
             <option value="Majorette">Majorette</option>
             <option value="Autre">Autre</option>
           </select>
         </div>
-
-        <div class="form-row">
-          <div class="form-group" style="flex:1;">
-            <label for="car-marque">Marque</label>
-            <input type="text" id="car-marque" oninput="checkDuplicates()" required placeholder="ex: Porsche">
-          </div>
-          <div class="form-group" style="flex:1;">
-            <label for="car-modele">Modèle</label>
-            <input type="text" id="car-modele" oninput="checkDuplicates()" required placeholder="ex: 911 GT3">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group" style="flex:1;">
-            <label for="car-serie">Série</label>
-            <input type="text" id="car-serie" placeholder="ex: Mainline">
-          </div>
-          <div class="form-group" style="flex:1;">
-            <label for="car-annee">Année</label>
-            <input type="number" id="car-annee" placeholder="2024">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group" style="flex:1;">
-            <label for="car-couleur">Couleur</label>
-            <input type="text" id="car-couleur" placeholder="Rouge">
-          </div>
-          <div class="form-group" style="flex:1;">
-            <label for="car-ref">Référence</label>
-            <input type="text" id="car-ref" oninput="checkDuplicates()" placeholder="ex: HKG23">
-          </div>
-        </div>
-
         <div class="form-group">
-          <label for="car-etat">État</label>
+          <label>Marque :</label>
+          <input type="text" id="car-marque" required oninput="checkDuplicates()">
+        </div>
+        <div class="form-group">
+          <label>Modèle :</label>
+          <input type="text" id="car-modele" required oninput="checkDuplicates()">
+        </div>
+        <div class="form-group">
+          <label>Série :</label>
+          <input type="text" id="car-serie">
+        </div>
+        <div class="form-group">
+          <label>Année :</label>
+          <input type="number" id="car-annee">
+        </div>
+        <div class="form-group">
+          <label>Couleur :</label>
+          <input type="text" id="car-couleur">
+        </div>
+        <div class="form-group">
+          <label>Référence :</label>
+          <input type="text" id="car-ref" oninput="checkDuplicates()">
+        </div>
+        <div class="form-group">
+          <label>État :</label>
           <select id="car-etat">
             <option value="Neuf en boîte">Neuf en boîte</option>
-            <option value="Très bon état">Très bon état</option>
-            <option value="Joué / Abîmé">Joué / Abîmé</option>
+            <option value="Loose (Très bon)">Loose (Très bon)</option>
+            <option value="Loose (Joué)">Loose (Joué)</option>
           </select>
         </div>
-
         <div class="form-group">
-          <label>Photo</label>
-          <div onclick="document.getElementById('car-image-input').click()" style="border: 2px dashed var(--border-color); padding: 10px; text-align: center; cursor: pointer;">
-            <p style="margin: 0;">Cliquez pour ajouter une image</p>
-            <input type="file" id="car-image-input" accept="image/*" onchange="handleImageUpload(event)" style="display: none;">
-            <div id="image-preview-container" style="display: none; margin-top: 10px;">
-              <img id="image-preview" src="" style="max-height: 100px; border-radius: 4px;">
-            </div>
+          <label>Photo :</label>
+          <input type="file" accept="image/*" onchange="handleImageUpload(event)">
+          <div id="image-preview-container" style="display:none; margin-top:8px;">
+            <img id="image-preview" style="max-width:100%; height:120px; object-fit:contain;">
           </div>
         </div>
 
-        <div class="car-actions">
-          <button type="button" onclick="closeModal()" style="background:#64748b;">Annuler</button>
-          <button type="submit">Enregistrer</button>
+        <div id="duplicate-warning" style="display:none; color:#f59e0b; margin-bottom:10px; font-size:0.85rem;">
+          ⚠️ Doublon potentiel détecté dans la collection !
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:16px;">
+          <button type="submit" style="flex:1;">Enregistrer</button>
+          <button type="button" class="btn-delete" onclick="closeModal()" style="flex:1;">Annuler</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal Lightbox -->
+  <!-- Modal Lightbox (Agrandissement) -->
   <div class="modal" id="lightbox-modal">
-    <div class="lightbox-content">
-      <button class="close-btn" type="button" onclick="closeLightbox()">&times;</button>
+    <div class="modal-content" style="text-align:center;">
       <div id="lightbox-body"></div>
+      <button onclick="closeLightbox()" style="margin-top:12px; width:100%;">Fermer</button>
     </div>
   </div>
-
 </body>
 </html>
