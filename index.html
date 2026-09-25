@@ -359,7 +359,48 @@
       localStorage.setItem('gh_repo', document.getElementById('gh-repo').value.trim());
       localStorage.setItem('gh_token', document.getElementById('gh-token').value.trim());
       alert('Configuration GitHub enregistrée !');
-      loadFromGitHub();
+      // Télécharge la collection depuis l'API GitHub directement (Compatible Firefox & caractères spéciaux)
+async function loadFromGitHub() {
+  var cfg = getGhConfig();
+  if (!cfg.user || !cfg.repo) return;
+
+  updateSyncStatus('⌛ Chargement GitHub...', 'syncing');
+  
+  var apiUrl = 'https://api.github.com/repos/' + cfg.user + '/' + cfg.repo + '/contents/' + cfg.filePath + '?ref=main&t=' + Date.now();
+
+  try {
+    var headers = {};
+    if (cfg.token) {
+      headers['Authorization'] = 'token ' + cfg.token;
+    }
+
+    var res = await fetch(apiUrl, { headers: headers });
+    if (res.ok) {
+      var fileData = await res.json();
+      
+      // Décodage du contenu Base64 sécurisé pour Firefox et UTF-8
+      var base64Cleaner = fileData.content.replace(/\s/g, '');
+      var binaryString = atob(base64Cleaner);
+      var bytes = new Uint8Array(binaryString.length);
+      for (var i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      var jsonText = new TextDecoder('utf-8').decode(bytes);
+      var remoteData = JSON.parse(jsonText);
+
+      collection = remoteData;
+      localStorage.setItem('carCollection', JSON.stringify(collection));
+      filterAndRender();
+      updateStats();
+      updateSyncStatus('☁️ Synchronisé avec GitHub', 'online');
+    } else {
+      updateSyncStatus('⚠️ Erreur chargement GitHub');
+    }
+  } catch (err) {
+    console.error('Erreur décodage / affichage:', err);
+    updateSyncStatus('📱 Mode hors-ligne (Local)');
+  }
+}
     }
 
     function updateSyncStatus(text, statusClass) {
