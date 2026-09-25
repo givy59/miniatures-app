@@ -345,20 +345,29 @@
     };
 
     // --- LOGIQUE GITHUB API ---
-    function getGhConfig() {
-      return {
-        user: localStorage.getItem('gh_user') || '',
-        repo: localStorage.getItem('gh_repo') || '',
-        token: localStorage.getItem('gh_token') || '',
-        filePath: 'data.json'
-      };
-    }
+   function getGhConfig() {
+  return {
+    user: (localStorage.getItem('gh_user') || '').trim(),
+    repo: (localStorage.getItem('gh_repo') || '').trim(),
+    token: (localStorage.getItem('gh_token') || '').trim(),
+    filePath: 'data.json'
+  };
+}
 
-    function saveGhConfig() {
-      localStorage.setItem('gh_user', document.getElementById('gh-user').value.trim());
-      localStorage.setItem('gh_repo', document.getElementById('gh-repo').value.trim());
-      localStorage.setItem('gh_token', document.getElementById('gh-token').value.trim());
-      alert('Configuration GitHub enregistrée !');
+function saveGhConfig() {
+  var userVal = document.getElementById('gh-user').value.trim();
+  var repoVal = document.getElementById('gh-repo').value.trim();
+  var tokenVal = document.getElementById('gh-token').value.trim();
+
+  localStorage.setItem('gh_user', userVal);
+  localStorage.setItem('gh_repo', repoVal);
+  localStorage.setItem('gh_token', tokenVal);
+
+  alert('Configuration enregistrée !');
+  
+  // Rechargement explicite des données depuis GitHub
+  loadFromGitHub();
+}
       // Télécharge la collection depuis l'API GitHub directement (Compatible Firefox & caractères spéciaux)
 async function loadFromGitHub() {
   var cfg = getGhConfig();
